@@ -1,5 +1,4 @@
 
-setwd("~/dev/FHX/workspace_java/FHX_model")
 source("correlation_realtime_svc.r")
 
 a = data.frame(

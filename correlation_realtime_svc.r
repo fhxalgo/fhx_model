@@ -1,6 +1,13 @@
 #library(zoo)
 #library(xts) 
 
+date_str <- as.character(format(Sys.time(),format="%Y%m%d"))
+REPORTDIR <- paste("/export/data/statstream/report/", date_str, sep="")
+
+if (!file.exists(REPORTDIR)){
+	dir.create(file.path(REPORTDIR))
+}
+
 # start time of the program
 startTime <- format(Sys.time(),format="%Y-%m-%d %H:%M:%S")
 ##
@@ -34,8 +41,8 @@ sw <- 128
 threshold <- 0.8  # correlation threshold for outputs
 
 bwdat <- data.frame()
+prev_value_list <- list()
 
-date_str <- Sys.Date()
 trade_period <- paste(date_str, " 09:30:00", "::", date_str, " 16:00:00", sep="")
 trading_end_time <- paste(date_str, " 15:45:00", sep="")
 
@@ -48,10 +55,10 @@ sym_list <- c("XLK", "HPQ", "INTC", "AAPL")
 n_stream <- length(sym_list)
 sym_index <- sym_list[1] # to be used everywhere
 
-corr_matrix <- data.frame(ncol=length(sym_list))
+corr_matrix <- as.data.frame(matrix(ncol = length(sym_list)+1))
 corr_matrix[1,1] <- 0
-cor_idx <- 1
-vol_matrix  <- data.frame(ncol=length(sym_list))
+cor_idx <- 0
+vol_matrix  <- as.data.frame(matrix(ncol = length(sym_list)+1))
 vol_matrix[1,1] <- 0
 
 order_list <- data.frame() # sym, shares, price, type(open/close), bwnum
@@ -118,8 +125,6 @@ add_new_order <- function(sym_y, order_type, sym_y_qty, sym_px_list, bwnum, curT
 UpdateDigest <- function(chopChunk, bw_tick, bw_num)
 {
 	for(j in 1:length(sym_list)) {
-		
-		cat(j)
 		bwdat <- bw_tick[,j+2]
 		rw <- as.numeric(bwdat)
 		
@@ -224,232 +229,271 @@ handle_position_closing <- function()
 	1
 }
 
+testVar <<- data.frame()
+test <- function(newDat) {
+	cat("before:\n")
+	print(testVar)
+	testVar = newDat
+	cat("after:\n");
+	print(testVar)
+	
+	newDat
+}
+
 process_basic_window3 <- function(newdat) 
 {		
 	tick_data <- newdat
 	colnames(tick_data) <- c("timeStamp", "bwNum", sym_list)
+
+	cat("\n++++++++++++NEW BASIC WINDOW BEGIN+++++++++++++++++++++++++++++++\n")
+	bwnum <- tick_data$bwNum[1]+1
 	
-	# create a xts object
-	#tick_xts <- as.xts(tick_data)
-	#X <- tick_xts[trade_period]  # 5 seconds time series streams
+	# get new basic window data for all stream  
+	#bwdat <- tickstream[readpointer:(bwnum*bw*n_stream), ]
+	# use time as index: start at 09:30, offset 120 seconds.
 	
-	# number of bw from input data files
-	m <- floor(nrow(tick_data) / bw)
+	# preserve prior run values
+	if(bwnum > 1) {
+		chopChunk <- prev_value_list[[1]]
+		corr_matrix <- prev_value_list[[2]]
+		vol_matrix <- prev_value_list[[3]]
+		position_list <- prev_value_list[[4]]
+		order_list <- prev_value_list[[5]]
 	
-		cat("\n++++++++++++NEW BASIC WINDOW BEGIN+++++++++++++++++++++++++++++++\n")
-		bwnum <- tick_data$bwNum[1] + 1
+		cat("existing corr_matrix\n")
+		print(corr_matrix)
+		print(vol_matrix)
+		print(order_list)
+		cor_idx <- nrow(corr_matrix) 
+		ord_idx <- nrow(order_list)
+	}
+
+	x_start <- 1
+	x_end   <- bw
+	cat("x_start: ",x_start, " ")
+	cat("x_end  : ",x_end, " \n")
+	
+	bwdat <- tick_data[x_start:x_end, ]
+	print(bwdat)
+	cat("processing bwnum...",bwnum, " time: ",bwdat$timeStamp[1], " \n")
+	
+	#cat("existing chopchunk\n")
+	#print(chopChunk)
+	# Note: bwdat is now column based
+	chopChunk <- UpdateDigest(chopChunk, bwdat, bwnum)
+	cat("done updating chopChunk... \n")
+	#print(chopChunk)
+	
+	# computing correlation    
+	if (bwnum >= sw/bw) {    
 		
-		# get new basic window data for all stream  
-		#bwdat <- tickstream[readpointer:(bwnum*bw*n_stream), ]
-		# use time as index: start at 09:30, offset 120 seconds.
+		swnum <- swnum + 1
+		cat("sliding window num ", swnum, " start computing correlations \n")
 		
-		x_start <- 1
-		x_end   <- bw
-		cat("x_start: ",x_start, " ")
-		cat("x_end  : ",x_end, " \n")
+		pos_signal_list <- list()
+		neg_signal_list <- list()
 		
-		bwdat <- tick_data[x_start:x_end, ]
-		print(bwdat)
-		cat("processing bwnum...",bwnum, " time: ",bwdat$timeStamp[1], " \n")
+		index_px <- chopChunk[[1]] # index is always the first one
+		cor_idx <- cor_idx + 1
 		
-		cat("existing chopchunk\n")
-		print(chopChunk)
-		# Note: bwdat is now column based
-		chopChunk <- UpdateDigest(chopChunk, bwdat, bwnum)
-		cat("done updating chopChunk... \n")
-		print(chopChunk)
-		
-		# computing correlation    
-		if (bwnum >= sw/bw) {    
-			# cache bwwin timestamp
-			timepointer <- c(timepointer, bwnum)
+		if (sd(index_px) == 0) {
+			# need to do nothing as index prices don't change
+			cat("xxx Warning: index_px for ", sym_index, " didn't change. All corr set to 0. \n ")
+			corr_matrix[cor_idx, ] <- 0  # this may not work
+			vol_matrix[cor_idx, ] <- 0  # this may not work
+			# do nothing until the next basic window update
+			next 
+		}
+		else {
+			corr_matrix[cor_idx, 1] <- 1 		#cor(ETF,ETF)=1
+			vol_matrix[cor_idx, 1] <- sd(index_px)
 			
-			swnum <- swnum + 1
-			cat("sliding window num ", swnum, " start computing correlations \n")
-			
-			pos_signal_list <- list()
-			neg_signal_list <- list()
-			
-			index_px <- chopChunk[[1]] # index is always the first one
-			
-			if (sd(index_px) == 0) {
-				# need to do nothing as index prices don't change
-				cat("xxx Warning: index_px for ", sym_index, " didn't change. All corr set to 0. \n ")
-				corr_matrix[cor_idx, ] <- 0  # this may not work
+			# now compute the correlations of each symbol with ETF 
+			for (j in 2:length(sym_list)) {
+				sym_j <- sym_list[j]
+				sym_px_list <- chopChunk[[j]]
 				
-				# do nothing until the next basic window update
-				next 
-			}
-			else {
-				corr_matrix[cor_idx, 1] <- 1
-				vol_matrix[cor_idx, 1] <- sd(index_px)
+				cat("symbol px ->\n")
+				print(chopChunk[[j]])
 				
-				# now compute the correlations of each symbol with ETF 
-				for (j in 2:length(sym_list)) {
-					sym_j <- sym_list[j]
-					sym_px_list <- chopChunk[[j]]
+				if (sd(sym_px_list) == 0) {
+					cat("xxxx got a constant price for ", sym_j)
+					cat(" bwnum=", bwnum, "\n")
+					cat("Time: ")
+					print(start(bwdat))
+					cat(" - ")
+					print(end(bwdat))
+					cat(" \n ")
 					
-					cat("symbol px ->\n")
-					print(chopChunk[[j]])
+					corr_matrix[cor_idx, j] <- 0  # prices don't change over a sliding window, ignore
+				}
+				else {
+					sym_cor_j <- cor(chopChunk[[1]], chopChunk[[j]])        
 					
-					if (sd(sym_px_list) == 0) {
-						cat("xxxx got a constant price for ", sym_j)
-						cat(" bwnum=", bwnum, "\n")
-						cat("Time: ")
-						print(start(bwdat))
-						cat(" - ")
-						print(end(bwdat))
-						cat(" \n ")
+					if (sym_cor_j > threshold) {
+						pos_signal_list[[sym_j]] <- sym_cor_j
+					}
+					
+					if (sym_cor_j < -threshold) {
+						neg_signal_list[[sym_j]] <- sym_cor_j            
+					}
+					
+					cat("correlation(1&",j,") = ",sym_cor_j,"\n")
+					corr_matrix[cor_idx, j] <- sym_cor_j            
+				}
+				
+				# log each symbol's volatility
+				vol_matrix[cor_idx, j] <- sd(sym_px_list)  
+				
+			} # end of for(j)
+			corr_matrix[cor_idx, j+1] <- bwnum	#timepoint
+			vol_matrix[cor_idx, j+1] <- bwnum	#timepoint
+		} # end of if(sd_index_px)==0)
+		
+		#
+		# properly close the open positions from previous windows
+		#
+		handle_position_closing()
+		
+		#
+		# generate open signals
+		#
+		# index return: used by every neg_signal_list to open a position 
+		index_ret <- log(index_px[sw]/index_px[1])
+		
+		# go through the neg_signal_list:  names(pos_signal_list[pos_signal_list<0])          
+		if (length(neg_signal_list) >0 ) {
+			open_signals <- names(neg_signal_list)
+			index_open_qty <- 0
+			
+			for (x in 1:length(open_signals)) {
+				sym_x <- open_signals[x]
+				sym_x_pos <- which(names(position_list) == sym_x)
+				if (length(sym_x_pos) !=0)
+					next # skip it as position has been held for sym_x 
+				
+				# get sym_id from sym_list
+				sym_id <- which(sym_list == sym_x)
+				
+				if (length(sym_id)) {
+					sym_px <- chopChunk[[sym_id]]  # raw price data 
+					# log return in the current sliding window
+					sym_ret <- log(sym_px[sw]/sym_px[1])  
+					
+					cat("$$$$ OPENING position for ", sym_x, " \n") 
+					# now create the order based on index and sym returns
+					# rule is simple: 
+					# if (ret_index > sym_ret)  short index, long sym
+					# else  long index, short sym
+					
+					# add to position_list
+					if ( sym_ret < index_ret ) {
+						position_list[[sym_x]]$qty <- 100 # long
+						position_list[[sym_x]]$px <- sym_px[sw]
+						position_list[[sym_x]]$index_px <- index_px[sw]
+						index_qty <- floor(-100 * sym_px[sw]/index_px[sw])
+						position_list[[sym_x]]$index_qty <- index_qty
+						# notice: we want to offset the quantity for index symbol, $$$
+						index_open_qty <- index_open_qty + index_qty
 						
-						corr_matrix[cor_idx, j] <- 0  # prices don't change over a sliding window, ignore
+						# create order
+						ord_idx <- ord_idx + 1
+						order_list[ord_idx, 1] <- sym_x
+						order_list[ord_idx, 2] <- "Buy" 
+						order_list[ord_idx, 3] <- 100  # long
+						order_list[ord_idx, 4] <- sym_px[sw]
+						order_list[ord_idx, 5] <- bwnum
+						order_list[ord_idx, 6] <- as.character(end(bwdat)) 
+						order_list[ord_idx, 7] <- 0 
+						
+						#new_order <- add_new_order(sym_x, "Buy", 100, sym_px, bwnum, as.character(end(bwdat)) ) 
+						#order_list[ord_idx,] <- new_order
+						
 					}
 					else {
-						sym_cor_j <- cor(chopChunk[[1]], chopChunk[[j]])        
+						position_list[[sym_x]]$qty <- -100 # short sell
+						position_list[[sym_x]]$px <- sym_px[sw]
+						position_list[[sym_x]]$index_px <- index_px[sw]
+						index_qty <- floor(100 * sym_px[sw]/index_px[sw])
+						position_list[[sym_x]]$index_qty <- index_qty
+						# notice: we want to offset the quantity for index symbol, $$$
+						index_open_qty <- index_open_qty + index_qty
 						
-						if (sym_cor_j > threshold) {
-							pos_signal_list[[sym_j]] <- sym_cor_j
-						}
+						ord_idx <- ord_idx + 1
+						order_list[ord_idx, 1] <- sym_x
+						order_list[ord_idx, 2] <- "ShortSell" 
+						order_list[ord_idx, 3] <- -100  # short sale
+						order_list[ord_idx, 4] <- sym_px[sw]
+						order_list[ord_idx, 5] <- bwnum
+						order_list[ord_idx, 6] <- as.character(end(bwdat))                
+						order_list[ord_idx, 7] <- 0
 						
-						if (sym_cor_j < -threshold) {
-							neg_signal_list[[sym_j]] <- sym_cor_j            
-						}
-						
-						cat("correlation(1&",j,") = ",sym_cor_j,"\n")
-						corr_matrix[cor_idx, j] <- sym_cor_j            
-					}
-					
-					# log each symbol's volatility
-					vol_matrix[cor_idx, j] <- sd(sym_px_list)  
-					
-				} # end of for(j)
-			} # end of if(sd_index_px)==0)
+						#new_order <- add_new_order(sym_x, "ShortShell", -100, sym_px, bwnum, as.character(end(bwdat)) ) 
+						#order_list[ord_idx,] <- new_order  
+					}                 
+				}
+			} # end of for (x)
 			
-			#
-			# properly close the open positions from previous windows
-			#
-			handle_position_closing()
-			
-			#
-			# generate open signals
-			#
-			# index return: used by every neg_signal_list to open a position 
-			index_ret <- log(index_px[sw]/index_px[1])
-			
-			# go through the neg_signal_list:  names(pos_signal_list[pos_signal_list<0])          
-			if (length(neg_signal_list) >0 ) {
-				open_signals <- names(neg_signal_list)
-				index_open_qty <- 0
+			# set index_open_qty
+			if (index_open_qty != 0) {
+				cat("$$$ open position_list on index is: ", index_open_qty, "\n")
+				position_list[[sym_index]]$qty <- index_open_qty # this is hedged position for open positions    
+				position_list[[sym_index]]$px <- index_px[sw]
 				
-				for (x in 1:length(open_signals)) {
-					sym_x <- open_signals[x]
-					sym_x_pos <- which(names(position_list) == sym_x)
-					if (length(sym_x_pos) !=0)
-						next # skip it as position has been held for sym_x 
-					
-					# get sym_id from sym_list
-					sym_id <- which(sym_list == sym_x)
-					
-					if (length(sym_id)) {
-						sym_px <- chopChunk[[sym_id]]  # raw price data 
-						# log return in the current sliding window
-						sym_ret <- log(sym_px[sw]/sym_px[1])  
-						
-						cat("$$$$ OPENING position for ", sym_x, " \n") 
-						# now create the order based on index and sym returns
-						# rule is simple: 
-						# if (ret_index > sym_ret)  short index, long sym
-						# else  long index, short sym
-						
-						# add to position_list
-						if ( sym_ret < index_ret ) {
-							position_list[[sym_x]]$qty <- 100 # long
-							position_list[[sym_x]]$px <- sym_px[sw]
-							position_list[[sym_x]]$index_px <- index_px[sw]
-							index_qty <- floor(-100 * sym_px[sw]/index_px[sw])
-							position_list[[sym_x]]$index_qty <- index_qty
-							# notice: we want to offset the quantity for index symbol, $$$
-							index_open_qty <- index_open_qty + index_qty
-							
-							# create order
-							ord_idx <- ord_idx + 1
-							order_list[ord_idx, 1] <- sym_x
-							order_list[ord_idx, 2] <- "Buy" 
-							order_list[ord_idx, 3] <- 100  # long
-							order_list[ord_idx, 4] <- sym_px[sw]
-							order_list[ord_idx, 5] <- bwnum
-							order_list[ord_idx, 6] <- as.character(end(bwdat)) 
-							order_list[ord_idx, 7] <- 0 
-							
-							#new_order <- add_new_order(sym_x, "Buy", 100, sym_px, bwnum, as.character(end(bwdat)) ) 
-							#order_list[ord_idx,] <- new_order
-							
-						}
-						else {
-							position_list[[sym_x]]$qty <- -100 # short sell
-							position_list[[sym_x]]$px <- sym_px[sw]
-							position_list[[sym_x]]$index_px <- index_px[sw]
-							index_qty <- floor(100 * sym_px[sw]/index_px[sw])
-							position_list[[sym_x]]$index_qty <- index_qty
-							# notice: we want to offset the quantity for index symbol, $$$
-							index_open_qty <- index_open_qty + index_qty
-							
-							ord_idx <- ord_idx + 1
-							order_list[ord_idx, 1] <- sym_x
-							order_list[ord_idx, 2] <- "ShortSell" 
-							order_list[ord_idx, 3] <- -100  # short sale
-							order_list[ord_idx, 4] <- sym_px[sw]
-							order_list[ord_idx, 5] <- bwnum
-							order_list[ord_idx, 6] <- as.character(end(bwdat))                
-							order_list[ord_idx, 7] <- 0
-							
-							#new_order <- add_new_order(sym_x, "ShortShell", -100, sym_px, bwnum, as.character(end(bwdat)) ) 
-							#order_list[ord_idx,] <- new_order  
-						}                 
-					}
-				} # end of for (x)
+				ord_idx <- ord_idx + 1
+				#      order_list[ord_idx, 1] <- sym_index # sym
+				#      order_list[ord_idx, 2] <- "Open" 
+				#      order_list[ord_idx, 3] <- index_open_qty  
+				#      order_list[ord_idx, 4] <- index_px[sw]
+				#      order_list[ord_idx, 5] <- bwnum
+				#      order_list[ord_idx, 6] <- as.character(end(bwdat))
+				#      order_list[ord_idx, 7] <- 0
 				
-				# set index_open_qty
-				if (index_open_qty != 0) {
-					cat("$$$ open position_list on index is: ", index_open_qty, "\n")
-					position_list[[sym_index]]$qty <- index_open_qty # this is hedged position for open positions    
-					position_list[[sym_index]]$px <- index_px[sw]
-					
-					ord_idx <- ord_idx + 1
-					#      order_list[ord_idx, 1] <- sym_index # sym
-					#      order_list[ord_idx, 2] <- "Open" 
-					#      order_list[ord_idx, 3] <- index_open_qty  
-					#      order_list[ord_idx, 4] <- index_px[sw]
-					#      order_list[ord_idx, 5] <- bwnum
-					#      order_list[ord_idx, 6] <- as.character(end(bwdat))
-					#      order_list[ord_idx, 7] <- 0
-					
-					#order_list <- add_orders(order_list, sym_index, "Open", index_open_qty, index_px, bwnum, as.character(end(bwdat)))
-					new_order <- add_new_order(sym_index, "Open", index_open_qty, index_px, bwnum, as.character(end(bwdat)) ) 
-					order_list[ord_idx,] <- new_order
-					
-				} # end if index_position 
+				#order_list <- add_orders(order_list, sym_index, "Open", index_open_qty, index_px, bwnum, as.character(end(bwdat)))
+				new_order <- add_new_order(sym_index, "Open", index_open_qty, index_px, bwnum, as.character(end(bwdat)) ) 
+				order_list[ord_idx,] <- new_order
 				
-			} # end of if (length(neg_signal_list)
+			} # end if index_position 
 			
-			cor_idx <- cor_idx + 1
-			
-			colnames(corr_matrix) <- sym_list
-			rownames(corr_matrix) <- timepointer 
-			corr_matrix[is.na(corr_matrix)] <- 0
-			colnames(vol_matrix) <- sym_list
-			rownames(vol_matrix) <- timepointer 
-			vol_matrix[is.na(vol_matrix)] <- 0
-			
-			cat("corr_matrix ->\n")
-			print(corr_matrix)
-			cat("vol_matrix ->\n")
-			print(vol_matrix)
-			
-		} #end of if (bwnum >= sw/bw)
-		
-		cat("------------NEW BASIC WINDOW END---------------------------------\n")
+		} # end of if (length(neg_signal_list)		
+	} #end of if (bwnum >= sw/bw)
 	
+	cat("------------NEW BASIC WINDOW END---------------------------------\n")
+
+	colnames(corr_matrix) <- c(sym_list, "bwnum")
+	corr_matrix[is.na(corr_matrix)] <- 0
+	corr_out <- paste(REPORTDIR,"/",sym_list[1],"_corr_matrix_",date_str,".csv",sep="")
+	cat("writing corr_matrix to ", corr_out, " \n")
+	write.csv(corr_matrix, corr_out)
 	
-	# return
-	nrow(tick_data)
+	colnames(vol_matrix) <- c(sym_list, "bwnum")
+	vol_matrix[is.na(vol_matrix)] <- 0
+	vol_out <- paste(REPORTDIR,"/",sym_list[1],"_vol_matrix_",date_str,".csv",sep="")
+	cat("writing vol_matrix to ", vol_out, " \n")
+	write.csv(vol_matrix, vol_out)
+	
+	# save the raw price data as well 
+	#price_out <-  paste(WD,"/DIA_price_matrix_",date_str,".csv",sep="") 
+	#cat("writing price_matrix to ", price_out, " \n")
+	#price_matrix <- as.data.frame(X)
+	#rownames(price_matrix) <- as.character(index(X))
+	#write.csv(price_matrix, price_out, row.names = TRUE)
+	
+	if(length(order_list) > 0) { 
+		order_columns <- c("Symbol",	"OrderType",	"Quantity",	"Price",	"BasicWinNum", "Time", "PnL")
+		colnames(order_list) <- order_columns
+		order_out <-  paste(REPORTDIR,"/",sym_list[1],"_order_",date_str,".csv",sep="")
+		cat("writing order_list to ", order_out, " \n")
+		write.csv(order_list, order_out)  
+	}
+
+	# return 
+	retVal <- list()
+	retVal[[1]] <- chopChunk
+	retVal[[2]] <- corr_matrix
+	retVal[[3]] <- vol_matrix
+	retVal[[4]] <- position_list
+	retVal[[5]] <- order_list
+	
+	retVal
 }

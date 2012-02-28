@@ -46,11 +46,18 @@ prev_value_list <- list()
 trade_period <- paste(date_str, " 09:30:00", "::", date_str, " 16:00:00", sep="")
 trading_end_time <- paste(date_str, " 15:45:00", sep="")
 
+index <- "DIA"
+SYMBOLFILE <- paste("~/dev/FHX/fhx_java/conf/", tolower(index), ".us.csv", sep="")
+
+symbol_data <- read.csv(SYMBOLFILE, header=TRUE)
+sym_list <- as.character(symbol_data$Symbol)
+sym_list <- c(index, sym_list)
+
 #sym_list <- c("DIA",
 #		"AA","AXP","BAC","BA","CAT","CSCO","CVX","DD","DIS","GE",
 #		"HD","HPQ","IBM","INTC","JNJ","JPM","KFT","KO","MCD","MMM",
 #		"MRK","MSFT","PFE","PG","TRV","T","UTX","VZ","WMT","XOM")
-sym_list <- c("XLK", "HPQ", "INTC", "AAPL")
+#sym_list <- c("XLK", "HPQ", "INTC", "AAPL")
 #ym_list <- c("EUR", "GBP", "JPY")
 n_stream <- length(sym_list)
 sym_index <- sym_list[1] # to be used everywhere

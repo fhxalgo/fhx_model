@@ -1,5 +1,4 @@
-#library(zoo)
-#library(xts) 
+library(hash) 
 
 date_str <- as.character(format(Sys.time(),format="%Y%m%d"))
 REPORTDIR <- paste("/export/data/statstream/report/", date_str, sep="")
@@ -70,7 +69,7 @@ vol_matrix[1,1] <- 0
 
 order_list <- data.frame() # sym, shares, price, type(open/close), bwnum
 ord_idx <- 0
-position_list <- list() # sym, qty, px, index_px, index_qty
+position_list <- hash() # sym, qty, px, index_px, index_qty
 
 bwnum <- 0
 swnum <- 0
@@ -154,7 +153,7 @@ UpdateDigest <- function(chopChunk, bw_tick, bw_num)
 handle_position_closing <- function()
 {
 	# close position first 
-	if (length(position_list) >0) {                
+	if (!is.empty(position_list)) {                
 		close_signals <- names(pos_signal_list)          
 		index_close_qty <- 0 # aggregate all shares for index so we don't send mutitple orders
 		
@@ -281,7 +280,7 @@ process_basic_window3 <- function(newdat)
 	cat("x_end  : ",x_end, " \n")
 	
 	bwdat <- tick_data[x_start:x_end, ]
-	print(bwdat)
+	#print(bwdat)
 	cat("processing bwnum...",bwnum, " time: ",bwdat$timeStamp[1], " \n")
 	
 	#cat("existing chopchunk\n")
@@ -320,17 +319,9 @@ process_basic_window3 <- function(newdat)
 				sym_j <- sym_list[j]
 				sym_px_list <- chopChunk[[j]]
 				
-				cat("symbol px ->\n")
-				print(chopChunk[[j]])
-				
 				if (sd(sym_px_list) == 0) {
 					cat("xxxx got a constant price for ", sym_j)
 					cat(" bwnum=", bwnum, "\n")
-					cat("Time: ")
-					print(start(bwdat))
-					cat(" - ")
-					print(end(bwdat))
-					cat(" \n ")
 					
 					corr_matrix[cor_idx, j] <- 0  # prices don't change over a sliding window, ignore
 				}
@@ -359,8 +350,9 @@ process_basic_window3 <- function(newdat)
 		
 		#
 		# properly close the open positions from previous windows
+		# this should go to Java code
 		#
-		handle_position_closing()
+		#handle_position_closing()
 		
 		#
 		# generate open signals
@@ -375,15 +367,18 @@ process_basic_window3 <- function(newdat)
 			
 			for (x in 1:length(open_signals)) {
 				sym_x <- open_signals[x]
-				sym_x_pos <- which(names(position_list) == sym_x)
-				if (length(sym_x_pos) !=0)
-					next # skip it as position has been held for sym_x 
 				
+				# TODO: pass in list of open position symbols and if exists, dont generate trade
+				#sym_x_pos <- position_list[[sym_x]]
+				#if (length(sym_x_pos) !=0)
+				#	next # skip it as position has been held for sym_x 
+		
 				# get sym_id from sym_list
 				sym_id <- which(sym_list == sym_x)
 				
 				if (length(sym_id)) {
 					sym_px <- chopChunk[[sym_id]]  # raw price data 
+
 					# log return in the current sliding window
 					sym_ret <- log(sym_px[sw]/sym_px[1])  
 					
@@ -393,13 +388,11 @@ process_basic_window3 <- function(newdat)
 					# if (ret_index > sym_ret)  short index, long sym
 					# else  long index, short sym
 					
+					cat(sym_x," return=",sym_ret,", idx_ret=",index_ret,"\n")
+					
 					# add to position_list
 					if ( sym_ret < index_ret ) {
-						position_list[[sym_x]]$qty <- 100 # long
-						position_list[[sym_x]]$px <- sym_px[sw]
-						position_list[[sym_x]]$index_px <- index_px[sw]
 						index_qty <- floor(-100 * sym_px[sw]/index_px[sw])
-						position_list[[sym_x]]$index_qty <- index_qty
 						# notice: we want to offset the quantity for index symbol, $$$
 						index_open_qty <- index_open_qty + index_qty
 						
@@ -410,33 +403,24 @@ process_basic_window3 <- function(newdat)
 						order_list[ord_idx, 3] <- 100  # long
 						order_list[ord_idx, 4] <- sym_px[sw]
 						order_list[ord_idx, 5] <- bwnum
-						order_list[ord_idx, 6] <- as.character(end(bwdat)) 
-						order_list[ord_idx, 7] <- 0 
-						
-						#new_order <- add_new_order(sym_x, "Buy", 100, sym_px, bwnum, as.character(end(bwdat)) ) 
-						#order_list[ord_idx,] <- new_order
-						
+						order_list[ord_idx, 6] <- bwdat[nrow(bwdat),1]       
+						order_list[ord_idx, 7] <- 0 						
 					}
 					else {
-						position_list[[sym_x]]$qty <- -100 # short sell
-						position_list[[sym_x]]$px <- sym_px[sw]
-						position_list[[sym_x]]$index_px <- index_px[sw]
 						index_qty <- floor(100 * sym_px[sw]/index_px[sw])
-						position_list[[sym_x]]$index_qty <- index_qty
 						# notice: we want to offset the quantity for index symbol, $$$
 						index_open_qty <- index_open_qty + index_qty
-						
+	
 						ord_idx <- ord_idx + 1
 						order_list[ord_idx, 1] <- sym_x
 						order_list[ord_idx, 2] <- "ShortSell" 
 						order_list[ord_idx, 3] <- -100  # short sale
 						order_list[ord_idx, 4] <- sym_px[sw]
 						order_list[ord_idx, 5] <- bwnum
-						order_list[ord_idx, 6] <- as.character(end(bwdat))                
-						order_list[ord_idx, 7] <- 0
-						
-						#new_order <- add_new_order(sym_x, "ShortShell", -100, sym_px, bwnum, as.character(end(bwdat)) ) 
-						#order_list[ord_idx,] <- new_order  
+						cat("check\n")
+						order_list[ord_idx, 6] <- bwdat[nrow(bwdat),1]            
+						order_list[ord_idx, 7] <- 0			
+						cat("check1\n")
 					}                 
 				}
 			} # end of for (x)
@@ -444,9 +428,6 @@ process_basic_window3 <- function(newdat)
 			# set index_open_qty
 			if (index_open_qty != 0) {
 				cat("$$$ open position_list on index is: ", index_open_qty, "\n")
-				position_list[[sym_index]]$qty <- index_open_qty # this is hedged position for open positions    
-				position_list[[sym_index]]$px <- index_px[sw]
-				
 				ord_idx <- ord_idx + 1
 				#      order_list[ord_idx, 1] <- sym_index # sym
 				#      order_list[ord_idx, 2] <- "Open" 
@@ -456,8 +437,7 @@ process_basic_window3 <- function(newdat)
 				#      order_list[ord_idx, 6] <- as.character(end(bwdat))
 				#      order_list[ord_idx, 7] <- 0
 				
-				#order_list <- add_orders(order_list, sym_index, "Open", index_open_qty, index_px, bwnum, as.character(end(bwdat)))
-				new_order <- add_new_order(sym_index, "Open", index_open_qty, index_px, bwnum, as.character(end(bwdat)) ) 
+				new_order <- add_new_order(sym_index, "Open", index_open_qty, index_px, bwnum, bwdat[nrow(bwdat),1] ) 
 				order_list[ord_idx,] <- new_order
 				
 			} # end if index_position 

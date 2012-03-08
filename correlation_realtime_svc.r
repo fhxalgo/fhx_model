@@ -260,11 +260,11 @@ process_basic_window3 <- function(newdat)
 	
 	# preserve prior run values
 	if(bwnum > 1) {
-		chopChunk <- prev_value_list[[1]]
-		corr_matrix <- prev_value_list[[2]]
-		vol_matrix <- prev_value_list[[3]]
-		position_list <- prev_value_list[[4]]
-		order_list <- prev_value_list[[5]]
+		order_list <- prev_value_list[[1]]
+		chopChunk <- prev_value_list[[2]]
+		corr_matrix <- prev_value_list[[3]]
+		vol_matrix <- prev_value_list[[4]]
+		position_list <- prev_value_list[[5]]
 	
 		cat("existing corr_matrix\n")
 		print(corr_matrix)
@@ -399,7 +399,7 @@ process_basic_window3 <- function(newdat)
 						# create order
 						ord_idx <- ord_idx + 1
 						order_list[ord_idx, 1] <- sym_x
-						order_list[ord_idx, 2] <- "Buy" 
+						order_list[ord_idx, 2] <- "buy" 
 						order_list[ord_idx, 3] <- 100  # long
 						order_list[ord_idx, 4] <- sym_px[sw]
 						order_list[ord_idx, 5] <- bwnum
@@ -413,14 +413,12 @@ process_basic_window3 <- function(newdat)
 	
 						ord_idx <- ord_idx + 1
 						order_list[ord_idx, 1] <- sym_x
-						order_list[ord_idx, 2] <- "ShortSell" 
-						order_list[ord_idx, 3] <- -100  # short sale
+						order_list[ord_idx, 2] <- "sellshort" 
+						order_list[ord_idx, 3] <- 100  # short sale
 						order_list[ord_idx, 4] <- sym_px[sw]
 						order_list[ord_idx, 5] <- bwnum
-						cat("check\n")
 						order_list[ord_idx, 6] <- bwdat[nrow(bwdat),1]            
 						order_list[ord_idx, 7] <- 0			
-						cat("check1\n")
 					}                 
 				}
 			} # end of for (x)
@@ -429,16 +427,23 @@ process_basic_window3 <- function(newdat)
 			if (index_open_qty != 0) {
 				cat("$$$ open position_list on index is: ", index_open_qty, "\n")
 				ord_idx <- ord_idx + 1
-				#      order_list[ord_idx, 1] <- sym_index # sym
-				#      order_list[ord_idx, 2] <- "Open" 
-				#      order_list[ord_idx, 3] <- index_open_qty  
-				#      order_list[ord_idx, 4] <- index_px[sw]
-				#      order_list[ord_idx, 5] <- bwnum
-				#      order_list[ord_idx, 6] <- as.character(end(bwdat))
-				#      order_list[ord_idx, 7] <- 0
+				order_list[ord_idx, 1] <- sym_index # sym
 				
-				new_order <- add_new_order(sym_index, "Open", index_open_qty, index_px, bwnum, bwdat[nrow(bwdat),1] ) 
-				order_list[ord_idx,] <- new_order
+				if(index_open_qty > 0) { 
+					order_list[ord_idx, 2] <- "buy" 
+					order_list[ord_idx, 3] <- index_open_qty
+				}
+				else {
+					order_list[ord_idx, 2] <- "sellshort" 
+					order_list[ord_idx, 3] <- abs(index_open_qty)
+				}
+				order_list[ord_idx, 4] <- index_px[sw]
+				order_list[ord_idx, 5] <- bwnum
+				order_list[ord_idx, 6] <- bwdat[nrow(bwdat),1]            
+				order_list[ord_idx, 7] <- 0
+				
+				#new_order <- add_new_order(sym_index, "Open", index_open_qty, index_px, bwnum, bwdat[nrow(bwdat),1] ) 
+				#order_list[ord_idx,] <- new_order
 				
 			} # end if index_position 
 			
@@ -476,11 +481,11 @@ process_basic_window3 <- function(newdat)
 
 	# return 
 	retVal <- list()
-	retVal[[1]] <- chopChunk
-	retVal[[2]] <- corr_matrix
-	retVal[[3]] <- vol_matrix
-	retVal[[4]] <- position_list
-	retVal[[5]] <- order_list
+	retVal[[1]] <- order_list
+	retVal[[2]] <- chopChunk
+	retVal[[3]] <- corr_matrix
+	retVal[[4]] <- vol_matrix
+	retVal[[5]] <- position_list
 	
 	retVal
 }

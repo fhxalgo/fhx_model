@@ -61,6 +61,9 @@ sym_list <- c(index, sym_list)
 n_stream <- length(sym_list)
 sym_index <- sym_list[1] # to be used everywhere
 
+order_columns <- c("Symbol","OrderType","Quantity","Price","BasicWinNum","Time","PnL")
+order_out <-  paste(REPORTDIR,"/",sym_index,"_order_",date_str,".csv",sep="")
+
 corr_matrix <- as.data.frame(matrix(ncol = length(sym_list)+1))
 corr_matrix[1,1] <- 0
 cor_idx <- 0
@@ -70,6 +73,7 @@ vol_matrix[1,1] <- 0
 order_list <- data.frame() # sym, shares, price, type(open/close), bwnum
 ord_idx <- 0
 position_list <- hash() # sym, qty, px, index_px, index_qty
+accu_order_list <- data.frame(matrix(ncol = length(order_columns)))
 
 bwnum <- 0
 swnum <- 0
@@ -260,20 +264,18 @@ process_basic_window3 <- function(newdat)
 	
 	# preserve prior run values
 	if(bwnum > 1) {
-		order_list <- prev_value_list[[1]]
 		chopChunk <- prev_value_list[[2]]
 		corr_matrix <- prev_value_list[[3]]
 		vol_matrix <- prev_value_list[[4]]
 		position_list <- prev_value_list[[5]]
+		accu_order_list <- prev_value_list[[6]]
 	
-		cat("existing corr_matrix\n")
-		print(corr_matrix)
-		print(vol_matrix)
-		print(order_list)
 		cor_idx <- nrow(corr_matrix) 
-		ord_idx <- nrow(order_list)
 	}
 
+	order_list <- data.frame()
+	ord_idx <- 0
+	
 	x_start <- 1
 	x_end   <- bw
 	cat("x_start: ",x_start, " ")
@@ -472,11 +474,12 @@ process_basic_window3 <- function(newdat)
 	#write.csv(price_matrix, price_out, row.names = TRUE)
 	
 	if(length(order_list) > 0) { 
-		order_columns <- c("Symbol",	"OrderType",	"Quantity",	"Price",	"BasicWinNum", "Time", "PnL")
+		colnames(accu_order_list) <- order_columns
 		colnames(order_list) <- order_columns
-		order_out <-  paste(REPORTDIR,"/",sym_list[1],"_order_",date_str,".csv",sep="")
+		accu_order_list <- rbind(accu_order_list, order_list)
+		
 		cat("writing order_list to ", order_out, " \n")
-		write.csv(order_list, order_out)  
+		write.csv(accu_order_list, order_out)  
 	}
 
 	# return 
@@ -486,6 +489,7 @@ process_basic_window3 <- function(newdat)
 	retVal[[3]] <- corr_matrix
 	retVal[[4]] <- vol_matrix
 	retVal[[5]] <- position_list
+	retVal[[6]] <- accu_order_list
 	
 	retVal
 }

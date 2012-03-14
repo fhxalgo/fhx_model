@@ -61,8 +61,10 @@ sym_list <- c(index, sym_list)
 n_stream <- length(sym_list)
 sym_index <- sym_list[1] # to be used everywhere
 
-order_columns <- c("Symbol","OrderType","Quantity","Price","BasicWinNum","Time","PnL")
+order_columns <- c("Symbol","OrderType","Quantity","Price","BasicWinNum","Time","PnL","SignalType")
 order_out <-  paste(REPORTDIR,"/",sym_index,"_order_",date_str,".csv",sep="")
+position_columns <- c("Symbol","Quantity","Price","IdxPx","IdxQty","BasicWinNum")
+position_out <- paste(REPORTDIR,"/",sym_index,"_position_",date_str,".csv",sep="")
 
 corr_matrix <- as.data.frame(matrix(ncol = length(sym_list)+1))
 corr_matrix[1,1] <- 0
@@ -72,8 +74,9 @@ vol_matrix[1,1] <- 0
 
 order_list <- data.frame() # sym, shares, price, type(open/close), bwnum
 ord_idx <- 0
-position_list <- hash() # sym, qty, px, index_px, index_qty
+position_hist <- as.data.frame(matrix(ncol = length(position_columns)))  # sym, qty, px, index_px, index_qty
 accu_order_list <- data.frame(matrix(ncol = length(order_columns)))
+position_list <- list() # sym, qty, px, index_px, index_qty
 
 bwnum <- 0
 swnum <- 0
@@ -157,7 +160,7 @@ UpdateDigest <- function(chopChunk, bw_tick, bw_num)
 handle_position_closing <- function()
 {
 	# close position first 
-	if (!is.empty(position_list)) {                
+	if (length(position_list) > 0) {                
 		close_signals <- names(pos_signal_list)          
 		index_close_qty <- 0 # aggregate all shares for index so we don't send mutitple orders
 		
@@ -172,7 +175,7 @@ handle_position_closing <- function()
 				cat("$$$$ CLOSING position for ", sym_y, " \n")
 				
 				sym_y_pos <- position_list[[sym_y]]  
-				#index_open_px <- as.numeric(position_list[[sym_list[1]]][2])  # not correct here, fix it later
+				#index_open_px <- as.numeric(position_hist[[sym_list[1]]][2])  # not correct here, fix it later
 				index_open_px <- as.numeric(sym_y_pos$index_px)  # fixed
 				index_close_px <- index_px[sw] 
 				
@@ -193,6 +196,7 @@ handle_position_closing <- function()
 				order_list[ord_idx, 5] <- bwnum
 				order_list[ord_idx, 6] <- as.character(end(bwdat))
 				order_list[ord_idx, 7] <- sym_pnl
+				order_list[ord_idx, 8] <- "CLOSE"
 				
 				# index position
 				ord_idx <- ord_idx + 1
@@ -203,32 +207,47 @@ handle_position_closing <- function()
 				order_list[ord_idx, 5] <- bwnum
 				order_list[ord_idx, 6] <- as.character(end(bwdat))
 				order_list[ord_idx, 7] <- index_pnl
+				order_list[ord_idx, 8] <- "CLOSE"
 				
 				index_close_qty <- index_close_qty - sym_y_pos$index_qty
 				
 				position_list[[sym_y]] <- NULL # remove the position
-				#position_list[[sym_list[1]]] <- NULL # remove the position        
+				
+				pos_idx <- pos_idx + 1
+				position_hist[pos_idx, 1] <- sym_y
+				position_hist[pos_idx, 2] <- 0
+				position_hist[pos_idx, 6] <- bwnum
 				
 			} # end of if (y_idx)
 		} # end of for(y)        
 		
-		# upadte position_list[[sym_index]]$qty  
+		# upadte position_hist[[sym_index]]$qty  
 		position_list[[sym_index]]$qty <- position_list[[sym_index]]$qty + index_close_qty
 		position_list[[sym_index]]$px <- 0
+		
 		# position_list should be flat after the Open positions are closed
+		pos_idx <- pos_idx + 1
+		position_hist[pos_idx, 1] <- sym_index
+		position_hist[pos_idx, 2] <- 0
+		position_hist[pos_idx, 6] <- bwnum
 		
 		# close all positions after 15:45, and turn trading flag to false
-		#if (as.character(end(bwdat)) > trading_end_time && length(position_list) >0) {
+		#if (as.character(end(bwdat)) > trading_end_time && length(position_hist) >0) {
 		if (as.character(format(end(bwdat), format="%Y%m%d %H:%M:%S")) > trading_end_time ) {
 			cat("$$$$ ending the auto trading session, liquiditing all open positions: \n");
-			print(names(position_list)) 
+			print(names(position_hist)) 
 			
-			for (p in 1:length(position_list)) {
-				sym <- names(position_list)[p]
-				pos <- position_list[[sym]]
+			for (p in 1:length(position_hist)) {
+				sym <- names(position_hist)[p]
+				pos <- position_hist[[sym]]
 				cat(" sym: ", sym, " qty: ", pos$qty, " \n")
 				
-				position_list[[sym]] <- NULL
+				position_hist[[sym]] <- NULL
+				
+				pos_idx <- pos_idx + 1
+				position_hist[pos_idx, 1] <- sym
+				position_hist[pos_idx, 2] <- 0
+				position_hist[pos_idx, 6] <- bwnum
 			}
 			cat("$$$$ \n")
 			stop
@@ -236,18 +255,7 @@ handle_position_closing <- function()
 		
 	} # end of if close position
 	
-	1
-}
-
-testVar <<- data.frame()
-test <- function(newDat) {
-	cat("before:\n")
-	print(testVar)
-	testVar = newDat
-	cat("after:\n");
-	print(testVar)
 	
-	newDat
 }
 
 process_basic_window3 <- function(newdat) 
@@ -267,10 +275,11 @@ process_basic_window3 <- function(newdat)
 		chopChunk <- prev_value_list[[2]]
 		corr_matrix <- prev_value_list[[3]]
 		vol_matrix <- prev_value_list[[4]]
-		position_list <- prev_value_list[[5]]
+		position_hist <- prev_value_list[[5]]
 		accu_order_list <- prev_value_list[[6]]
 	
 		cor_idx <- nrow(corr_matrix) 
+		pos_idx <- nrow(position_hist)
 	}
 
 	order_list <- data.frame()
@@ -314,7 +323,7 @@ process_basic_window3 <- function(newdat)
 		}
 		else {
 			corr_matrix[cor_idx, 1] <- 1 		#cor(ETF,ETF)=1
-			vol_matrix[cor_idx, 1] <- sd(index_px)
+			vol_matrix[cor_idx, 1] <- round(sd(index_px), digits=4)
 			
 			# now compute the correlations of each symbol with ETF 
 			for (j in 2:length(sym_list)) {
@@ -339,7 +348,7 @@ process_basic_window3 <- function(newdat)
 					}
 					
 					cat("correlation(1&",j,") = ",sym_cor_j,"\n")
-					corr_matrix[cor_idx, j] <- sym_cor_j            
+					corr_matrix[cor_idx, j] <- round(sym_cor_j, digits=4)            
 				}
 				
 				# log each symbol's volatility
@@ -354,7 +363,7 @@ process_basic_window3 <- function(newdat)
 		# properly close the open positions from previous windows
 		# this should go to Java code
 		#
-		#handle_position_closing()
+		handle_position_closing()
 		
 		#
 		# generate open signals
@@ -370,10 +379,9 @@ process_basic_window3 <- function(newdat)
 			for (x in 1:length(open_signals)) {
 				sym_x <- open_signals[x]
 				
-				# TODO: pass in list of open position symbols and if exists, dont generate trade
-				#sym_x_pos <- position_list[[sym_x]]
-				#if (length(sym_x_pos) !=0)
-				#	next # skip it as position has been held for sym_x 
+				sym_x_pos <- position_list[[sym_x]]
+				if (length(sym_x_pos) !=0)
+					next # skip it as position has been held for sym_x 
 		
 				# get sym_id from sym_list
 				sym_id <- which(sym_list == sym_x)
@@ -392,9 +400,18 @@ process_basic_window3 <- function(newdat)
 					
 					cat(sym_x," return=",sym_ret,", idx_ret=",index_ret,"\n")
 					
-					# add to position_list
+					# add to position_hist
 					if ( sym_ret < index_ret ) {
+						pos_idx <- pos_idx + 1
+						position_hist[pos_idx, 1] <- sym_x
+						position_list[[sym_x]]$qty <- position_hist[pos_idx, 2] <- 100 # long
+						position_list[[sym_x]]$px <- position_hist[pos_idx, 3] <- sym_px[sw]
+						position_list[[sym_x]]$index_px <- position_hist[pos_idx, 4] <- index_px[sw]
+						
 						index_qty <- floor(-100 * sym_px[sw]/index_px[sw])
+						position_list[[sym_x]]$index_qty <- position_hist[pos_idx, 5] <- index_qty
+						position_list[[sym_x]]$bwNum <- position_hist[pos_idx, 6] <- bwnum
+						
 						# notice: we want to offset the quantity for index symbol, $$$
 						index_open_qty <- index_open_qty + index_qty
 						
@@ -406,10 +423,20 @@ process_basic_window3 <- function(newdat)
 						order_list[ord_idx, 4] <- sym_px[sw]
 						order_list[ord_idx, 5] <- bwnum
 						order_list[ord_idx, 6] <- bwdat[nrow(bwdat),1]       
-						order_list[ord_idx, 7] <- 0 						
+						order_list[ord_idx, 7] <- 0 	
+						order_list[ord_idx, 8] <- "OPEN"
 					}
 					else {
+						pos_idx <- pos_idx + 1
+						position_hist[pos_idx, 1] <- sym_x
+						position_list[[sym_x]]$qty <- position_hist[pos_idx, 2] <- -100 # short 
+						position_list[[sym_x]]$px <- position_hist[pos_idx, 3] <- sym_px[sw]
+						position_list[[sym_x]]$index_px <- position_hist[pos_idx, 4] <- index_px[sw]
+						
 						index_qty <- floor(100 * sym_px[sw]/index_px[sw])
+						position_list[[sym_x]]$index_qty <- position_hist[pos_idx, 5] <- index_qty
+						position_list[[sym_x]]$bwNum <- position_hist[pos_idx, 6] <- bwnum
+						
 						# notice: we want to offset the quantity for index symbol, $$$
 						index_open_qty <- index_open_qty + index_qty
 	
@@ -420,14 +447,23 @@ process_basic_window3 <- function(newdat)
 						order_list[ord_idx, 4] <- sym_px[sw]
 						order_list[ord_idx, 5] <- bwnum
 						order_list[ord_idx, 6] <- bwdat[nrow(bwdat),1]            
-						order_list[ord_idx, 7] <- 0			
+						order_list[ord_idx, 7] <- 0
+						order_list[ord_idx, 8] <- "OPEN"
 					}                 
 				}
 			} # end of for (x)
 			
 			# set index_open_qty
 			if (index_open_qty != 0) {
-				cat("$$$ open position_list on index is: ", index_open_qty, "\n")
+				cat("$$$ open position_hist on index is: ", index_open_qty, "\n")
+				pos_idx <- pos_idx + 1
+				position_hist[pos_idx, 1] <- sym_index
+				position_list[[sym_index]]$qty <- position_hist[pos_idx, 2] <- index_open_qty
+				position_list[[sym_index]]$px <- position_hist[pos_idx, 3] <- index_px[sw]
+				position_hist[pos_idx, 4] <- index_open_qty
+				position_hist[pos_idx, 5] <- index_px[sw]
+				position_list[[sym_index]]$bwNum <- position_hist[pos_idx, 6] <- bwnum
+				
 				ord_idx <- ord_idx + 1
 				order_list[ord_idx, 1] <- sym_index # sym
 				
@@ -443,6 +479,7 @@ process_basic_window3 <- function(newdat)
 				order_list[ord_idx, 5] <- bwnum
 				order_list[ord_idx, 6] <- bwdat[nrow(bwdat),1]            
 				order_list[ord_idx, 7] <- 0
+				order_list[ord_idx, 8] <- "OPEN"
 				
 				#new_order <- add_new_order(sym_index, "Open", index_open_qty, index_px, bwnum, bwdat[nrow(bwdat),1] ) 
 				#order_list[ord_idx,] <- new_order
@@ -481,6 +518,11 @@ process_basic_window3 <- function(newdat)
 		cat("writing order_list to ", order_out, " \n")
 		write.csv(accu_order_list, order_out)  
 	}
+	if(length(position_hist) > 0) { 
+		colnames(position_hist) <- position_columns
+		cat("writing position_hist to ", position_out, " \n")
+		write.csv(position_hist, position_out)  
+	}
 
 	# return 
 	retVal <- list()
@@ -488,7 +530,7 @@ process_basic_window3 <- function(newdat)
 	retVal[[2]] <- chopChunk
 	retVal[[3]] <- corr_matrix
 	retVal[[4]] <- vol_matrix
-	retVal[[5]] <- position_list
+	retVal[[5]] <- position_hist
 	retVal[[6]] <- accu_order_list
 	
 	retVal

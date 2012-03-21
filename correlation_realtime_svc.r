@@ -35,8 +35,8 @@ sym_data <- list()
 tick_data <<- data.frame()
 
 # set up
-bw <- 32
-sw <- 128
+bw <- 24
+sw <- 96
 holding_time <- sw/bw  # expressed in # of basic windows
 threshold <- 0.8  # correlation threshold for outputs
 
@@ -164,7 +164,9 @@ close_position <- function(dataPack, chopChunk, sym_y, sym_index,bwnum)
 	
 	print(position_list[[sym_y]])
 	
+	index <- sym_list[[1]]
 	sym_y_pos <- position_list[[sym_y]]  
+	index_pos <- position_list[[index]]
 	index_open_px <- as.numeric(sym_y_pos$index_px)  # fixed
 	index_px <- chopChunk[[1]]
 	index_close_px <- index_px[sw]
@@ -180,8 +182,14 @@ close_position <- function(dataPack, chopChunk, sym_y, sym_index,bwnum)
 	# sym position
 	ord_idx <- nrow(order_list) + 1
 	order_list[ord_idx, 1] <- sym_y # sym
-	order_list[ord_idx, 2] <- "CLOSE" 
-	order_list[ord_idx, 3] <- - sym_y_pos$qty                              
+	if(sym_y_pos$qty > 0) {
+		order_list[ord_idx, 2] <- "sell"
+	}
+	else {
+		order_list[ord_idx, 2] <- "buy"
+	}
+
+	order_list[ord_idx, 3] <- abs(sym_y_pos$qty)                              
 	order_list[ord_idx, 4] <- sym_close_px
 	order_list[ord_idx, 5] <- bwnum
 	order_list[ord_idx, 6] <- Sys.time()
@@ -193,23 +201,41 @@ close_position <- function(dataPack, chopChunk, sym_y, sym_index,bwnum)
 	
 	# index position
 	ord_idx <- ord_idx + 1
-	order_list[ord_idx, 1] <- sym_list[[1]]
-	order_list[ord_idx, 2] <- "CLOSE" 
-	order_list[ord_idx, 3] <- -sym_y_pos$index_qty
+	order_list[ord_idx, 1] <- index
+	if(sym_y_pos$qty > 0) {
+		order_list[ord_idx, 2] <- "buy"
+	}
+	else {
+		order_list[ord_idx, 2] <- "sell"
+	}
+
+	order_list[ord_idx, 3] <- abs(sym_y_pos$index_qty)
 	order_list[ord_idx, 4] <- index_px[sw]
 	order_list[ord_idx, 5] <- bwnum
 	order_list[ord_idx, 6] <- Sys.time()
 	order_list[ord_idx, 7] <- index_pnl
 	order_list[ord_idx, 8] <- "CLOSE"
 	
-	cat("generating closing order ",sym_list[[1]],"\n")
+	cat("generating closing order ",index,"\n")
 	print(order_list[ord_idx,])
 	
 	position_list[[sym_y]] <- NULL # remove the position
 	
+	# adjust symbol position
 	pos_idx <- nrow(position_hist) + 1
 	position_hist[pos_idx, 1] <- sym_y
 	position_hist[pos_idx, 2] <- 0
+	position_hist[pos_idx, 6] <- bwnum
+	
+	# adjust index position
+	pos_idx <- nrow(position_hist) + 1
+	position_hist[pos_idx, 1] <- index
+	if(index_pos$qty > 0) {
+		position_hist[pos_idx, 2] <- position_list[[index]]$qty <- index_pos$qty - sym_y_pos$index_qty
+	}
+	else {
+		position_hist[pos_idx, 2] <- position_list[[index]]$qty <- index_pos$qty + sym_y_pos$index_qty
+	}
 	position_hist[pos_idx, 6] <- bwnum
 	
 	dataPack[[1]] <- position_list
@@ -232,7 +258,7 @@ handle_position_closing <- function(position_list,position_hist,pos_signal_list,
 		
 		if(length(pos_signal_list)) {
 			cat("closing signals\n")
-			print(pos_signal_list)
+			print(names(pos_signal_list))
 		}
 		
 		for (y in 1:length(close_signals)) {
@@ -257,8 +283,15 @@ handle_position_closing <- function(position_list,position_hist,pos_signal_list,
 		
 		# if holding_time has expires, close the position even if the correlation has not come back
 		for(sym in names(position_list)) {
+			# index position should always be adjusted based on a non-index symbol position
+			if(sym == sym_index)
+				next;
+			
 			cat("determining to close position, ",bwnum,"-",position_list[[sym]]$bwNum,"\n");
 			if((bwnum - position_list[[sym]]$bwNum) >= holding_time) {
+				dataPack[[1]] <- position_list
+				dataPack[[2]] <- position_hist
+				dataPack[[3]] <- order_list
 				dataPack <- close_position(dataPack, chopChunk, sym, sym_y_idx,bwnum)
 			}
 		}
@@ -352,7 +385,7 @@ process_basic_window3 <- function(newdat)
 						neg_signal_list[[sym_j]] <- sym_cor_j            
 					}
 					
-					cat("correlation(1&",j,") = ",sym_cor_j,"\n")
+					#cat("correlation(1&",j,") = ",sym_cor_j,"\n")
 					corr_matrix[cor_idx, j] <- round(sym_cor_j, digits=4)            
 				}
 				
@@ -365,7 +398,7 @@ process_basic_window3 <- function(newdat)
 		} # end of if(sd_index_px)==0)
 		
 		cat("pos_signal_list\n")
-		print(pos_signal_list);
+		print(names(pos_signal_list));
 		
 		#
 		# properly close the open positions from previous windows
@@ -471,6 +504,7 @@ process_basic_window3 <- function(newdat)
 			# set index_open_qty
 			if (index_open_qty != 0) {
 				cat("$$$ open position_hist on index is: ", index_open_qty, "\n")
+
 				pos_idx <- nrow(position_hist) + 1
 				position_hist[pos_idx, 1] <- sym_index
 				position_list[[sym_index]]$qty <- position_hist[pos_idx, 2] <- index_open_qty

@@ -47,7 +47,7 @@ trade_period <- paste(date_str, " 09:30:00", "::", date_str, " 16:00:00", sep=""
 trading_end_time <- paste(date_str, " 15:45:00", sep="")
 
 index <- "DIA"
-SYMBOLFILE <- paste("~/dev/FHX/fhx_java/conf/", tolower(index), ".us.csv", sep="")
+SYMBOLFILE <- paste("/export/FHX/fhx_java/conf/", tolower(index), ".us.csv", sep="")
 
 symbol_data <- read.csv(SYMBOLFILE, header=TRUE)
 sym_list <- as.character(symbol_data$Symbol)

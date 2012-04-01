@@ -589,3 +589,29 @@ process_basic_window3 <- function(newdat)
 	
 	retVal
 }
+
+process_basic_window4 <- function(newdat, bwnum) 
+{		
+	tick_data <- newdat
+	colnames(tick_data) <- c("timeStamp", "bwNum", sym_list)
+
+	cat("\n++++++++++++NEW BASIC WINDOW BEGIN+++++++++++++++++++++++++++++++\n")
+	cat("bwnum: ", bwnum, "\n");
+
+  tick_out <- paste(REPORTDIR,"/",index,"_bw_ticks_",bwnum,".csv",sep="")
+	cat("writing bw tick data to ", tick_out, " \n")
+	write.csv(tick_data, tick_out)
+
+	# return 
+	retVal <- list()
+	retVal[[1]] <- order_list
+	retVal[[2]] <- chopChunk
+	retVal[[3]] <- corr_matrix
+	retVal[[4]] <- vol_matrix
+	retVal[[5]] <- position_hist
+	retVal[[6]] <- accu_order_list
+	retVal[[7]] <- position_list
+	
+	retVal
+  	
+}

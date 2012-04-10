@@ -593,6 +593,7 @@ process_basic_window3 <- function(newdat)
 process_basic_window4 <- function(newdat, bwnum) 
 {		
 	tick_data <- newdat
+	
 	colnames(tick_data) <- c("timeStamp", "bwNum", sym_list)
 
 	cat("\n++++++++++++NEW BASIC WINDOW BEGIN+++++++++++++++++++++++++++++++\n")
@@ -615,3 +616,4 @@ process_basic_window4 <- function(newdat, bwnum)
 	retVal
   	
 }
+

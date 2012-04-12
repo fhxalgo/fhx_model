@@ -1,6 +1,20 @@
 
 test <- function() {
-  rnorm(1000)
+  bw_tick <- streamData
+  bwnum <- as.character(bw_tick$winNum[1])
+
+  tick_out <- paste(DATADIR,"/",index,"_ticks_bw_",bwnum,".csv",sep="")
+  write.csv(bw_tick, tick_out)
+
+  retList <- list()
+
+  retList$rnorm <- rnorm(10)
+  retList$bw <- bw
+  retList$sw <- sw
+  retList$streamData <- streamData
+  retList$bwnum <- bwnum
+
+  retList
 }
 
 # update each stream's digest for each new basic window

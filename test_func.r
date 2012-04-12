@@ -1,4 +1,8 @@
 
+test <- function() {
+  rnorm(1000)
+}
+
 # update each stream's digest for each new basic window
 # Note: here the stream data are column based, i.e. AA, IBM, ...etc.
 UpdateDigest <- function(chopChunk, bw_tick, bw_num)

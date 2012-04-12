@@ -1,4 +1,5 @@
-library(hash) 
+# clear all exsiting workspace variables
+rm(list=ls(all=TRUE))
 
 date_str <- as.character(format(Sys.time(),format="%Y%m%d"))
 REPORTDIR <- paste("/export/data/statstream/report/", date_str, sep="")

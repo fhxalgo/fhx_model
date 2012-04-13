@@ -9,6 +9,10 @@ if (!file.exists(REPORTDIR)){
 	dir.create(file.path(REPORTDIR))
 }
 
+if (!file.exists(DATADIR)){
+	dir.create(file.path(DATADIR))
+}
+
 # start time of the program
 startTime <- format(Sys.time(),format="%Y-%m-%d %H:%M:%S")
 ##

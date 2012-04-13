@@ -1,7 +1,7 @@
 
 test <- function() {
   bw_tick <- streamData
-  bwnum <- as.character(bw_tick$winNum[1])
+  bwnum <<- as.character(bw_tick$winNum[1]) # note this changes global var bwnum
 
   tick_out <- paste(DATADIR,"/",index,"_ticks_bw_",bwnum,".csv",sep="")
   write.csv(bw_tick, tick_out)

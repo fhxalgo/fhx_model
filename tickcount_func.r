@@ -59,10 +59,44 @@ trading_rules1 <- function() {
   
 }
 
+gen_pos_list <- function() {
+  # method 1: if 3 consecutive buy signals are formed, long index
+  #           if 3 consecutive sell signals are formed, short index 
+  # EXIT: close when 3 or 5 zeros are formed 
+  if (  !is.null(signalList[[bwnum]]) 
+    &&  !is.null(signalList[[bwnum-2]])
+    &&  !is.null(signalList[[bwnum-3]])
+    && signalList[[bwnum]]$t == "buy" 
+    && signalList[[bwnum-1]]$t == "buy" 
+    && signalList[[bwnum-1]]$t == "buy" ) {
+  
+    ord <- list(bwnum=bwnum, pos="long")
+    posList[[bwnum]] <<- ord  
+  }
+
+  if (  !is.null(signalList[[bwnum]]) 
+    &&  !is.null(signalList[[bwnum-2]])
+    &&  !is.null(signalList[[bwnum-3]])
+    && signalList[[bwnum]]$t == "sell" 
+    && signalList[[bwnum-1]]$t == "sell" 
+    && signalList[[bwnum-1]]$t == "sell" ) {
+  
+    ord <- list(bwnum=bwnum, pos="shortsell")
+    posList[[bwnum]] <<- ord  
+  }
+ 
+}
+
+gen_close_list <- function() {
+  # 1. close based on "zero" signal
+  # 2. close based on eod trading
+   
+}
+
 # xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
 process_bw_data <- function(bwdat, bwnum) {
-    cat("\n++++++NEW BASIC WINDOW (",bwnum,") BEGIN++++++++++++++++++++++\n")
+    cat("\n++++++BEGIN BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++\n")
 
     # get new basic window data for all stream
     #bwdat <- tickstream[readpointer:(bwnum*bw*n_stream), ]
@@ -99,6 +133,9 @@ process_bw_data <- function(bwdat, bwnum) {
     
     # now process sliding window stats
     if ( bwnum >= sw/bw) {
+      # lazy way: should do a 1-step update
+      sw_score_list <<- ma(bw_score_list)
+      
       # compute sw index return, assume index 1 is the ETF sector
       sid <- which(names(bw_score)==sector)
       index_swpx <- chopChunk[[sid]]
@@ -113,25 +150,32 @@ process_bw_data <- function(bwdat, bwnum) {
         # buy
         cat("XXXX: buy signal...bwnum=",bwnum)
         ord <- list(bwnum=bwnum, t="buy")
-        posList[[bwnum]] <<- ord
+        signalList[[bwnum]] <<- ord
       }
       else if (swStats < -2*bw_score_sd) {
         # sell
         cat("XXXX: sell signal...bwnum=",bwnum)
         ord <- list(bwnum=bwnum, t="sell")
-        posList[[bwnum]] <<- ord
+        signalList[[bwnum]] <<- ord
+      }
+      else if (abs(swStats/bw_score_sd) < 0.5) {
+        # recommond no positions held, 
+        # use this signal to close the position (long/short) if any
+        # or, only set this when holding index position
+        
+        cat("XXXX: zero signal...bwnum=",bwnum)
+        ord <- list(bwnum=bwnum,t="zero")
+        signalList[[bwnum]] <<- ord
       }
       else {
-        # do nothing, or close a position
-        
-
+        signalList[[bwnum]] <<- NULL
       }
       
       # we need a list bw scores and current sw score to make a trading decision
 
     }
 
-    cat("\n++++++NEW BASIC WINDOW (",bwnum,") END++++++++++++++++++++++++\n")
+    cat("\n++++++END BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++++\n")
 
 }
 
@@ -139,7 +183,7 @@ gen_report_and_plot <- function() {
   cat("EOD reached.  Generating trading reports and PnL plot...\n")
   
   # compute sw score and ret
-  sw_score_list <- ma(bw_score_list) # * (sw/bw)
+  #sw_score_list <- ma(bw_score_list) # * (sw/bw)
   
   score_list <- cbind(idx_time, bw_score_list, sw_score_list, index_px_list, index_bwret_list, index_swret_list)
   colnames(score_list, c("time", "bw_score", "sw_score", "index_px", "bw_index_ret", "sw_index_ret"))
@@ -171,10 +215,10 @@ gen_report_and_plot <- function() {
   # trading rules: use all bw scores stats, if current sw_score is 2 outside of 2*sd (bw_score),
   # make an entry position and exit when it's reverting back to mean.
   
-  
-  posDf <- as.data.frame(do.call(rbind,posList))
-  buyIdx <- as.numeric(posDf[posDf$t=="buy",1] )
-  sellIdx <- as.numeric(posDf[posDf$t=="sell",1] )
+  signalDf <- as.data.frame(do.call(rbind,signalList))
+  buyIdx <- as.numeric(signalDf[signalDf$t=="buy",1] )
+  sellIdx <- as.numeric(signalDf[signalDf$t=="sell",1] )
+  zeroIdx <- as.numeric(signalDf[signalDf$t=="zero",1] )
   
   #png(filename=paste("F:/DEV/Robmind/",sector,"_",dateStr,"_figure.png",sep=""), height=295, width=600, bg="white")
   #par(mfrow=c(2,1)))
@@ -185,6 +229,7 @@ gen_report_and_plot <- function() {
   grid()
   abline(v=buyIdx,col='green')
   abline(v=sellIdx,col='red')
+  abline(v=zeroIdx,col='yellow')
   atidx <- seq(1,length(idx_time), 5)
   timelabel <- strptime(idx_time, "%Y-%m-%d %H:%M:%OS")
   xlabel <- format(timelabel, "%H:%M")
@@ -202,5 +247,87 @@ gen_report_and_plot <- function() {
   #abline(v=sellIdx,col='red')
   
   
+  cat(paste("DONE. ", format(Sys.time(),format="%Y-%m-%d %H:%M:%S"), "\n"),sep="")
+}
+
+
+## plot price time series 
+plotPriceSeries <- function(X, label="px") {
+  x <- 1:NROW(X)                        # simple index 
+  plot.new()                            # empty plot 
+  oldpar <- par(mar=c(0,4,2,4),         # no bottom spacing 
+                ylog=FALSE,              # plot on log(price) axis
+                lend="square")          # square line ends
+
+  ## set up coordinates
+  plot.window(range(x), range(X, na.rm=TRUE), xaxs="i")
+  grid()                                # dashed grid 
+
+  lines(x, X, col='black')
+
+  axis(2) 
+  #axis(4, pos=par("usr")[1], line=0.5)  # this would plot them 'inside'
+  title(ylab=label)              # y-axis label 
+
+  box()                                 # outer box 
+  par(oldpar) 
+}
+
+gen_plot <- function() {
+  cat("EOD reached.  Generating trading reports and PnL plot...\n")
+  
+  score_list <- cbind(idx_time, bw_score_list, sw_score_list, index_px_list, index_bwret_list, index_swret_list)
+  colnames(score_list, c("time", "bw_score", "sw_score", "index_px", "bw_index_ret", "sw_index_ret"))
+  
+  out_report <- paste("/export/data/",date_str,"/",sector,"_score_list_",date_str,".csv",sep="")
+  write.csv(score_list, out_report)
+  
+  cat("=========== corr summary ==================\n")
+  me <- read.csv(out_report)
+  print(summary(me))
+  
+  # trading rules: use all bw scores stats, if current sw_score is 2 outside of 2*sd (bw_score),
+  # make an entry position and exit when it's reverting back to mean.
+  
+  signalDf <- as.data.frame(do.call(rbind,signalList))
+  buyIdx <- as.numeric(signalDf[signalDf$t=="buy",1] )
+  sellIdx <- as.numeric(signalDf[signalDf$t=="sell",1] )
+  zeroIdx <- as.numeric(signalDf[signalDf$t=="zero",1] )
+  
+  # test plot
+  layout(matrix(c(1,2,3),3,1,byrow=TRUE), 
+         height=c(0.5,0.2,0.3), width=1)
+
+  ## set 'global' plot parameters: horizontal y-axis labels, tighter spacing
+  ## and no outer spacing
+oldpar <- par(las=1, mar=c(2,4,2,4), oma=c(2.5,0.5,1.5,0.5)) 
+
+
+  plotPriceSeries(me$index_px_list, "index px")
+
+  ptitle <- paste(sector,", ",date_str,sep="")
+  #plot(me$index_px_list, type='o', ylim=range(me$index_px_list), axes=F, ann=T, xlab="", ylab="px")
+  #plot(me$index_px_list, type='o', ylim=range(me$index_px_list), axes=FALSE, ann=FALSE, xlab="", ylab="px")
+  grid()
+  abline(v=buyIdx,col='green')
+  abline(v=sellIdx,col='red')
+  #abline(v=zeroIdx,col='yellow')
+  title(main=ptitle)
+
+  plotPriceSeries(me$sw_score_list, "sliding win score")
+  #plotSignalsSeries(me$sw_score_list)
+  plotPriceSeries(me$bw_score_list, "basic win score")
+  
+  atidx <- seq(1,length(idx_time), 5)
+  timelabel <- strptime(idx_time, "%Y-%m-%d %H:%M:%OS")
+  xlabel <- format(timelabel, "%H:%M")
+  #axis(1,at=atidx, lab=substring(idx_time[atidx],1,5), las=2)
+  axis(1,at=atidx, lab=xlabel[atidx], las=2)
+  #axis(2, las=1, at=range(me$index_px_list))
+  axis(2, las=1, at=seq(min(me$index_px_list), max(me$index_px_list), 0.10))
+  
+  #hist(sprd, main="", col="lightblue")
+  par(oldpar)      
+
   cat(paste("DONE. ", format(Sys.time(),format="%Y-%m-%d %H:%M:%S"), "\n"),sep="")
 }

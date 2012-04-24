@@ -7,7 +7,7 @@ rm(list=ls(all=TRUE))
 source("C:/Projects/workspace/fhx_model/tickcount_func.r")
 
 sector <- "DIA"
-qdate_str <- "2012.04.12"
+qdate_str <- "2012.04.18"
 date_str <- gsub("\\.", "", qdate_str, ignore.case=T, fixed=F)
 #date_str <- "20120402"
 
@@ -57,6 +57,7 @@ sw <- 120
 
 chopChunk <- list()  # raw data in a sw
 swStats <- list()    # stats in a sw
+signalList <- list() # bullish/bearish signals 
 posList <- list()
 
 tick_stats <- data.frame(nrow=0, ncol=n_stream)
@@ -83,11 +84,17 @@ for (i in 1:m) {
     
     process_bw_data(bwdat, bwnum)
     
+    # gen orders 
+    if ( bwnum >= sw/bw && length(signalList) >=3 ) {
+    #  gen_pos_list()
+    }
 }
 
 # call this from Java after EOD
-gen_report_and_plot()
+#gen_report_and_plot()
+#source("C:/Projects/workspace/fhx_model/tickcount_func.r")
 
+gen_plot()
 
 # source("F:/DEV/fhxalgo/fhxmodel/statstream/tickcount.r")
 

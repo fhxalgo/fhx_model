@@ -7,27 +7,35 @@ rm(list=ls(all=TRUE))
 source("C:/Projects/workspace/fhx_model/tickcount_func.r")
 
 sector <- "DIA"
-qdate_str <- "2012.04.18"
+qdate_str <- "2012.04.27"
 date_str <- gsub("\\.", "", qdate_str, ignore.case=T, fixed=F)
 #date_str <- "20120402"
 
-DATA_DIR <- paste("/export/data/",date_str,sep="")
-
 trade_period <- paste(date_str, " 09:30:00", "::", date_str, " 16:00:00", sep="")
-trading_end_time <- paste(date_str, " 15:45:00", sep="")
+trading_end_time <- paste(date_str, " 16:00:59", sep="")
+#z_tick <- strptime("20/2/06 11:16:16.683", "%d/%m/%y %H:%M:%OS")
+z_end <- z_tick <- strptime(trading_end_time, "%Y%m%d %H:%M:%S")
 
+default_qty <- 100 # default trading size
+order_columns <- c("Symbol","OrderType","Quantity","Price","BasicWinNum","Time")
+order_out <-  paste("/export/data/",date_str,"/",sector,"_order_",date_str,".csv",sep="")
+entry_order_list <- list() 
+
+position_list <- list() # holding corrent open position
+    
 # test
 sym_list <- c("DIA", #"AA",
   "AXP","BAC","BA","CAT","CSCO","CVX","DD","DIS","GE",
   "HD","HPQ","IBM","INTC","JNJ","JPM","KFT","KO","MCD","MMM",
   "MRK","MSFT","PFE","PG","TRV","T","UTX","VZ","WMT","XOM")
-#sym_file <- paste("H:/etf/",tolower(sector),".us.csv",sep="")
-#sym_list <- c(sector, as.character(read.csv(sym_file)$Symbol))
+SYMBOLFILE <- paste("/export/FHX/fhx_java/conf/", tolower(sector), ".us.csv", sep="")
+sym_list <- c(sector, as.character(read.csv(SYMBOLFILE)$Symbol))
 
 # list holding each sym's tick data
 sym_trading_list <- c()
 sym_data <- list()
 
+DATA_DIR <- paste("/export/data/",date_str,sep="")
 # load simulation tick data 
 load_tick_data(sym_list)
 
@@ -46,12 +54,13 @@ rownames(tick_data) <- row_idx
 #X <- tick_xts[trade_period]  # 5 seconds time series streams
 
 X <- tick_data
+# if raw data is 1 second ticks, change it to every 5 seconds
 #row_idx <- as.character(row_idx)
 #sel_rows <- seq(1,length(row_idx),5)  # every 5 seconds
 #T5 <- X[sel_rows,] # 5 second tick data
-#T5 <- X
+#X <- T5
 
-
+# model set up
 bw <- 24
 sw <- 120
 
@@ -82,12 +91,18 @@ for (i in 1:m) {
     #x_start <- x_end - bw
     bwdat <- X[x_start:x_end, ]
     
-    process_bw_data(bwdat, bwnum)
-    
-    # gen orders 
-    if ( bwnum >= sw/bw && length(signalList) >=3 ) {
-    #  gen_pos_list()
+    # call this from Java 
+    z_tick <- strptime(rownames(bwdat)[nrow(bwdat)], "%Y-%m-%d %H:%M:%OS")    
+    if (z_tick < z_end) {
+      process_bw_data(bwdat, bwnum)
     }
+    else {
+      # close all position
+      if ( length(position_list) > 0 ) {
+        gen_eod_order()
+      }
+    }
+        
 }
 
 # call this from Java after EOD
@@ -95,6 +110,9 @@ for (i in 1:m) {
 #source("C:/Projects/workspace/fhx_model/tickcount_func.r")
 
 gen_plot()
+
+order_list <- do.call(rbind, entry_order_list)
+write.csv(order_list,paste("/export/data/",date_str,"/",sector,"_orderlist_",date_str,",csv",sep=""))
 
 # source("F:/DEV/fhxalgo/fhxmodel/statstream/tickcount.r")
 

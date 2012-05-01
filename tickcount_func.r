@@ -104,8 +104,7 @@ gen_entry_order <- function() {
   new_order <- list()
   
   if (signalList[[bwnum]]$t=="buy" 
-      && index_bwret_list[length(index_bwret_list)] > 0
-      && index_swret_list[length(index_swret_list)] > 0 ) {
+      && index_bwret_list[length(index_bwret_list)] > 0) {
       
       limit_px <- index_px_list[length(index_px_list)]
       new_order <- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)])  
@@ -114,8 +113,7 @@ gen_entry_order <- function() {
   }
     
   if (signalList[[bwnum]]$t=="sell" 
-      && index_bwret_list[length(index_bwret_list)] < 0
-      && index_swret_list[length(index_swret_list)] < 0 ) {
+      && index_bwret_list[length(index_bwret_list)] < 0) {
 
       limit_px <- index_px_list[length(index_px_list)]
       new_order <- add_new_order(sector,"shortsell",default_qty,limit_px,bwnum,idx_time[length(idx_time)])       

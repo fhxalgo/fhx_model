@@ -108,9 +108,9 @@ gen_entry_order <- function() {
       && index_swret_list[length(index_swret_list)] > 0 ) {
       
       limit_px <- index_px_list[length(index_px_list)]
-      new_order <- add_new_order(sector,"buy",default_qty,limit_px,bwnum,Sys.time())  
+      new_order <- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)])  
       
-      position_list <<- list(index=sector, side="long", qty=default_qty)
+      position_list <<- list(index=sector, side="long", qty=default_qty, px=limit_px)
   }
     
   if (signalList[[bwnum]]$t=="sell" 
@@ -118,9 +118,9 @@ gen_entry_order <- function() {
       && index_swret_list[length(index_swret_list)] < 0 ) {
 
       limit_px <- index_px_list[length(index_px_list)]
-      new_order <- add_new_order(sector,"shortsell",default_qty,limit_px,bwnum,Sys.time())       
+      new_order <- add_new_order(sector,"shortsell",default_qty,limit_px,bwnum,idx_time[length(idx_time)])       
       
-      position_list <<- list(index=sector, side="short", qty=default_qty)
+      position_list <<- list(index=sector, side="short", qty=default_qty, px=limit_px)
   }    
   
   entry_order_list[[bwnum]] <<- new_order
@@ -134,7 +134,9 @@ gen_exit_order <- function() {
     && (sw_score_list[length(sw_score_list)] < 0) ) {
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",default_qty,limit_px,bwnum,Sys.time())
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",default_qty,limit_px,bwnum,idx_time[length(idx_time)])
+      
+      pnl_list[[bwnum]] <<- position_list$qty * ( limit_px - position_list$px )
       position_list <<- NULL
   }
 
@@ -142,7 +144,9 @@ gen_exit_order <- function() {
     && (sw_score_list[length(sw_score_list)] > 0) ) {
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",default_qty,limit_px,bwnum,Sys.time())
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)])
+      
+      pnl_list[[bwnum]] <<- position_list$qty * ( position_list$px - limit_px )
       position_list <<- NULL
   }
    
@@ -155,14 +159,18 @@ gen_eod_order <- function() {
   if (position_list$side == "long") {
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",default_qty,limit_px,bwnum,Sys.time())
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",default_qty,limit_px,bwnum,idx_time[length(idx_time)])
+      
+      pnl_list[[bwnum]] <<- position_list$qty * ( limit_px - position_list$px )
       position_list <<- NULL
   }
 
   if (position_list$side == "short") {
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",default_qty,limit_px,bwnum,Sys.time())
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)])
+      
+      pnl_list[[bwnum]] <<- position_list$qty * ( position_list$px - limit_px )      
       position_list <<- NULL
   }   
 }

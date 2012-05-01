@@ -172,7 +172,18 @@ gen_eod_order <- function() {
       
       pnl_list[[bwnum]] <<- position_list$qty * ( position_list$px - limit_px )      
       position_list <<- NULL
-  }   
+  } 
+  
+  #gen_plot()
+
+  order_list <- do.call(rbind, entry_order_list)
+  write.csv(order_list,paste("/export/data/",date_str,"/",sector,"_orderlist_",date_str,",csv",sep=""))
+
+  pnl <- do.call(rbind, pnl_list)
+  write.csv(order_list,paste("/export/data/",date_str,"/",sector,"_pnl_",date_str,",csv",sep=""))
+  cat("pnl: ", sum(pnl))
+  print(pnl)
+  
 }
 
 process_bw_data <- function(bwdat, bwnum) {

@@ -186,15 +186,17 @@ gen_eod_order <- function() {
 
 process_bw_data <- function(bwdat, bwnum) {
     cat("\n++++++BEGIN BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++\n")
-
+	bwnum <<- bwnum
+	
+	# write out basic window data as reference
+	write.csv(bwdat,paste("/export/data/",date_str,"/",sector,"_ticks_bw_",bwnum,".csv",sep=""))
+	
 	row_idx <- bwdat$timestamp
 	#colnames(tick_data) <- sym_trading_list
 	rownames(bwdat) <- row_idx
 	#remove the first 2 cols, rownum and timstamp
 	bwdat <- bwdat[,c(-1,-2)]
 	bwdat <- as.matrix(bwdat)
-	
-	write.csv(bwdat,paste("/export/data/",date_str,"/",sector,"_ticks_bw_",bwnum,".csv",sep=""))
 	
     # get new basic window data for all stream
     #bwdat <- tickstream[readpointer:(bwnum*bw*n_stream), ]

@@ -37,6 +37,7 @@ print(sym_trading_list)
 bw <- 24
 sw <- 120
 
+bwnum <- 0
 chopChunk <- list()  # raw data in a sw
 swStats <- list()    # stats in a sw
 signalList <- list() # bullish/bearish signals 

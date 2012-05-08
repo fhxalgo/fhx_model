@@ -80,7 +80,7 @@ gen_signal_list <- function() {
      
 }
 
-add_new_order <- function(sym, side, qty, px, bwnum, curTime) 
+add_new_order <- function(sym, side, qty, px, bwnum, ord_time, ord_type) 
 {
 	# Symbol OrderType Quantity  Price BasicWinNum  Time  PnL
 	new_order <- list()
@@ -90,8 +90,9 @@ add_new_order <- function(sym, side, qty, px, bwnum, curTime)
 	new_order$Quantity <- qty                              
 	new_order$Price <- px
 	new_order$BasicWinNum <- bwnum
-	new_order$Time <- curTime
-		
+	new_order$Time <- ord_time
+	new_order$Type <- ord_type
+  		
 	new_order
 }
 
@@ -108,7 +109,7 @@ gen_entry_order <- function() {
       && index_swret_list[length(index_swret_list)] > 0 ) {
       
       limit_px <- index_px_list[length(index_px_list)]
-      new_order <- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)])  
+      new_order <- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"EntryLong")  
       
       position_list <<- list(index=sector, side="long", qty=default_qty, px=limit_px)
   }
@@ -118,7 +119,7 @@ gen_entry_order <- function() {
       && index_swret_list[length(index_swret_list)] < 0 ) {
 
       limit_px <- index_px_list[length(index_px_list)]
-      new_order <- add_new_order(sector,"shortsell",default_qty,limit_px,bwnum,idx_time[length(idx_time)])       
+      new_order <- add_new_order(sector,"shortsell",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"EntryShort")       
       
       position_list <<- list(index=sector, side="short", qty=default_qty, px=limit_px)
   }    
@@ -134,7 +135,7 @@ gen_exit_order <- function() {
     && (sw_score_list[length(sw_score_list)] < 0) ) {
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",default_qty,limit_px,bwnum,idx_time[length(idx_time)])
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
       
       pnl_list[[bwnum]] <<- position_list$qty * ( limit_px - position_list$px )
       position_list <<- NULL
@@ -144,7 +145,7 @@ gen_exit_order <- function() {
     && (sw_score_list[length(sw_score_list)] > 0) ) {
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)])
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
       
       pnl_list[[bwnum]] <<- position_list$qty * ( position_list$px - limit_px )
       position_list <<- NULL
@@ -159,7 +160,7 @@ gen_eod_order <- function() {
   if (position_list$side == "long") {
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",default_qty,limit_px,bwnum,idx_time[length(idx_time)])
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
       
       pnl_list[[bwnum]] <<- position_list$qty * ( limit_px - position_list$px )
       position_list <<- NULL
@@ -168,7 +169,7 @@ gen_eod_order <- function() {
   if (position_list$side == "short") {
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)])
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
       
       pnl_list[[bwnum]] <<- position_list$qty * ( position_list$px - limit_px )      
       position_list <<- NULL
@@ -200,6 +201,70 @@ process_bw_data <- function(bwdat, bwnum) {
     # get new basic window data for all stream
     #bwdat <- tickstream[readpointer:(bwnum*bw*n_stream), ]
     # use time as index: start at 09:30, offset 120 seconds.
+
+    cat("processing bwnum: ",bwnum, " \n")
+    cat(" time begin: ", rownames(bwdat)[1], "\n")
+    cat(" time   end: ", rownames(bwdat)[nrow(bwdat)], " \n")
+    cat("trading_end: ", trading_end_time, "\n")
+    # the end of each bw time
+    idx_time <<- c(idx_time, rownames(bwdat)[nrow(bwdat)])
+    
+    # update raw data for sw
+    #chopChunk <- update_sw(chopChunk, bwdat, bwnum)
+    update_sw(bwdat, bwnum)
+
+    # now build each basic win tick count stats: use apply func
+    logret <- diff(log(bwdat))
+
+    #ret_rowsum <- apply(logret, 1, sum) # by row
+    #ret_colsum <- apply(logret, 2, sum) # by col
+    # sum of ret_rowsum should be equal to ret_colsum
+
+    # score of each basic win    
+    bw_score <- apply(logret, 2, tick_counter) # 2: by column vector
+    bw_score_sum <- sum(bw_score[-which(names(bw_score)==sector)])
+
+    # add to global var list
+    bw_score_list <<- c(bw_score_list, bw_score_sum) # global var
+    index_px_vec <- as.numeric(bwdat[,which(names(bw_score)==sector)])
+    index_px_list <<- c(index_px_list, index_px_vec[length(index_px_vec)])
+    
+    index_bwret <- log(index_px_vec[nrow(bwdat)]/index_px_vec[1])
+    index_bwret_list <<- c(index_bwret_list, index_bwret)
+    
+    # now process sliding window stats
+    if ( bwnum >= sw/bw) {
+      # lazy way: should do a 1-step update
+      sw_score_list <<- ma(bw_score_list)
+      
+      # compute sw index return, assume index 1 is the ETF sector
+      sid <- which(names(bw_score)==sector)
+      index_swpx <- chopChunk[[sid]]
+      index_swret <- log(index_swpx[length(index_swpx)]/index_swpx[1])
+      index_swret_list <<- c(index_swret_list, index_swret)
+
+      # 1. signal 
+      gen_signal_list()
+        
+      # 2. order 
+      if ( length(position_list) == 0 ) {
+          gen_entry_order()
+      }
+      
+      if ( length(position_list) > 0 ) {
+          gen_exit_order()
+      }
+      
+        
+      # 3. position 
+
+    }
+
+    cat("\n++++++END BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++++\n")
+}
+
+process_bw_data_backtest <- function(bwdat, bwnum) {
+    cat("\n++++++BEGIN BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++\n")
 
     cat("processing bwnum: ",bwnum, " \n")
     cat(" time begin: ", rownames(bwdat)[1], "\n")
@@ -388,8 +453,8 @@ gen_plot <- function() {
   oldpar <- par(las=1, mar=c(2,4,2,4), oma=c(2.5,0.5,1.5,0.5)) 
 
   plotPriceSeries(me$index_px_list, "prices")
-
-  ptitle <- paste(sector,", ",date_str,sep="")
+  pnl <- formatC(sum(do.call(rbind, pnl_list)), digits=0)
+  ptitle <- paste(sector,", ",date_str,", pnl: ",pnl,sep="")
   #plot(me$index_px_list, type='o', ylim=range(me$index_px_list), axes=F, ann=T, xlab="", ylab="px")
   #plot(me$index_px_list, type='o', ylim=range(me$index_px_list), axes=FALSE, ann=FALSE, xlab="", ylab="px")
   grid()
@@ -398,7 +463,16 @@ gen_plot <- function() {
   #abline(v=zeroIdx,col='yellow')
   title(main=ptitle)
 
+  order_list <- as.data.frame(do.call(rbind,entry_order_list))
+  openLongIdx <- as.numeric(order_list[order_list$Type=="EntryLong",]$BasicWinNum)
+  openShortIdx <- as.numeric(order_list[order_list$Type=="EntryShort",]$BasicWinNum)
+  exitIdx <- as.numeric(order_list[order_list$Type=="Exit",]$BasicWinNum)
+    
   plotPriceSeries(me$sw_score_list, "sw scores")
+  abline(v=openLongIdx,col='green')
+  abline(v=openShortIdx,col='red')
+  abline(v=exitIdx,col='black')
+
   #plotSignalsSeries(me$sw_score_list)
   plotPriceSeries(me$bw_score_list, "bw scores")
   

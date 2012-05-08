@@ -7,7 +7,7 @@ rm(list=ls(all=TRUE))
 source("C:/Projects/workspace/fhx_model/tickcount_func.r")
 
 sector <- "DIA"
-qdate_str <- "2012.04.30"
+qdate_str <- "2012.05.07"
 date_str <- gsub("\\.", "", qdate_str, ignore.case=T, fixed=F)
 #date_str <- "20120402"
 
@@ -95,7 +95,7 @@ for (i in 1:m) {
     # call this from Java 
     z_tick <- strptime(rownames(bwdat)[nrow(bwdat)], "%Y-%m-%d %H:%M:%OS")    
     if (z_tick < z_end) {
-      process_bw_data(bwdat, bwnum)
+      process_bw_data_backtest(bwdat, bwnum)
     }
     else {
       # close all position
@@ -108,8 +108,8 @@ for (i in 1:m) {
 
 # call this from Java after EOD
 #gen_report_and_plot()
-#source("C:/Projects/workspace/fhx_model/tickcount_func.r")
-
+#
+source("C:/Projects/workspace/fhx_model/tickcount_func.r")
 gen_plot()
 
 order_list <- do.call(rbind, entry_order_list)

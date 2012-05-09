@@ -112,8 +112,7 @@ gen_entry_order <- function() {
       
       position_list <<- list(index=sector, side="long", qty=default_qty, px=limit_px)
   }
-    
-  if (signalList[[bwnum]]$t=="sell" 
+  else if (signalList[[bwnum]]$t=="sell" 
       && index_bwret_list[length(index_bwret_list)] < 0) {
 
       limit_px <- index_px_list[length(index_px_list)]
@@ -138,8 +137,7 @@ gen_exit_order <- function() {
       pnl_list[[bwnum]] <<- position_list$qty * ( limit_px - position_list$px )
       position_list <<- NULL
   }
-
-  if (position_list$side == "short" 
+  else if (position_list$side == "short" 
     && (sw_score_list[length(sw_score_list)] > 0) ) {
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
@@ -154,25 +152,25 @@ gen_exit_order <- function() {
 gen_eod_order <- function() {
   # if holding a long position,  close when sw_score < 0
   # if holing a short position, close when sw_score > 0
-  
-  if (position_list$side == "long") {
-    # close long position 
-      limit_px <- index_px_list[length(index_px_list)]
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
-      
-      pnl_list[[bwnum]] <<- position_list$qty * ( limit_px - position_list$px )
-      position_list <<- NULL
-  }
+  cat("EOD reached, gen_eod_order. \n")
 
-  if (position_list$side == "short") {
-    # close long position 
-      limit_px <- index_px_list[length(index_px_list)]
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
-      
-      pnl_list[[bwnum]] <<- position_list$qty * ( position_list$px - limit_px )      
-      position_list <<- NULL
-  } 
-  
+    if (position_list$side == "long") {
+      # close long position 
+        limit_px <- index_px_list[length(index_px_list)]
+        entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
+        
+        pnl_list[[bwnum]] <<- position_list$qty * ( limit_px - position_list$px )
+        position_list <<- NULL
+    }
+    else if (position_list$side == "short") {
+      # close long position 
+        limit_px <- index_px_list[length(index_px_list)]
+        entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
+        
+        pnl_list[[bwnum]] <<- position_list$qty * ( position_list$px - limit_px )      
+        position_list <<- NULL
+    } 
+
   #gen_plot()
 
   order_list <- do.call(rbind, entry_order_list)
@@ -256,8 +254,7 @@ process_bw_data <- function(bwdat, bwnum) {
       if ( length(position_list) > 0 ) {
           gen_exit_order()
       }
-      
-        
+       
       # 3. position 
 
     }
@@ -321,8 +318,7 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
       if ( length(position_list) > 0 ) {
           gen_exit_order()
       }
-      
-        
+              
       # 3. position 
 
     }
@@ -456,7 +452,7 @@ gen_plot <- function() {
   oldpar <- par(las=1, mar=c(2,4,2,4), oma=c(2.5,0.5,1.5,0.5)) 
 
   plotPriceSeries(me$index_px_list, "prices")
-  pnl <- formatC(sum(do.call(rbind, pnl_list)), digits=0)
+  pnl <- formatC(sum(do.call(rbind, pnl_list)), digits=2)
   ptitle <- paste(sector,", ",date_str,", pnl: ",pnl,sep="")
   #plot(me$index_px_list, type='o', ylim=range(me$index_px_list), axes=F, ann=T, xlab="", ylab="px")
   #plot(me$index_px_list, type='o', ylim=range(me$index_px_list), axes=FALSE, ann=FALSE, xlab="", ylab="px")

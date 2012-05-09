@@ -7,9 +7,9 @@ rm(list=ls(all=TRUE))
 source("C:/Projects/workspace/fhx_model/tickcount_func.r")
 
 sector <- "DIA"
-qdate_str <- "2012.05.07"
+qdate_str <- "2012.05.08"
 date_str <- gsub("\\.", "", qdate_str, ignore.case=T, fixed=F)
-#date_str <- "20120402"
+#date_str <- "20120507"
 
 trade_period <- paste(date_str, " 09:30:00", "::", date_str, " 16:00:00", sep="")
 trading_end_time <- paste(date_str, " 16:00:59", sep="")
@@ -97,11 +97,9 @@ for (i in 1:m) {
     if (z_tick < z_end) {
       process_bw_data_backtest(bwdat, bwnum)
     }
-    else {
+    else if ( !is.null(position_list) && length(position_list) > 0 ) {
       # close all position
-      if ( length(position_list) > 0 ) {
         gen_eod_order()
-      }
     }
         
 }

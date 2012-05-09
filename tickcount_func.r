@@ -105,8 +105,7 @@ gen_entry_order <- function() {
   new_order <- list()
   
   if (signalList[[bwnum]]$t=="buy" 
-      && index_bwret_list[length(index_bwret_list)] > 0
-      && index_swret_list[length(index_swret_list)] > 0 ) {
+      && index_bwret_list[length(index_bwret_list)] > 0) {
       
       limit_px <- index_px_list[length(index_px_list)]
       new_order <- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"EntryLong")  
@@ -115,8 +114,7 @@ gen_entry_order <- function() {
   }
     
   if (signalList[[bwnum]]$t=="sell" 
-      && index_bwret_list[length(index_bwret_list)] < 0
-      && index_swret_list[length(index_swret_list)] < 0 ) {
+      && index_bwret_list[length(index_bwret_list)] < 0) {
 
       limit_px <- index_px_list[length(index_px_list)]
       new_order <- add_new_order(sector,"shortsell",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"EntryShort")       
@@ -189,15 +187,18 @@ gen_eod_order <- function() {
 
 process_bw_data <- function(bwdat, bwnum) {
     cat("\n++++++BEGIN BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++\n")
-
-    row_idx <- bwdat$timestamp
-    #colnames(tick_data) <- sym_trading_list
-    rownames(bwdat) <- row_idx
-    #remove the first 2 cols, rownum and timstamp
-    bwdat <- bwdat[,c(-1,-2)]
-
-    write.csv(bwdat,paste("/export/data/",date_str,"/",sector,"_ticks_bw_",bwnum,".csv",sep=""))
-
+	bwnum <<- bwnum
+	
+	# write out basic window data as reference
+	write.csv(bwdat,paste("/export/data/",date_str,"/",sector,"_ticks_bw_",bwnum,".csv",sep=""))
+	
+	row_idx <- bwdat$timestamp
+	#colnames(tick_data) <- sym_trading_list
+	rownames(bwdat) <- row_idx
+	#remove the first 2 cols, rownum and timstamp
+	bwdat <- bwdat[,c(-1,-2)]
+	bwdat <- as.matrix(bwdat)
+	
     # get new basic window data for all stream
     #bwdat <- tickstream[readpointer:(bwnum*bw*n_stream), ]
     # use time as index: start at 09:30, offset 120 seconds.
@@ -206,32 +207,33 @@ process_bw_data <- function(bwdat, bwnum) {
     cat(" time begin: ", rownames(bwdat)[1], "\n")
     cat(" time   end: ", rownames(bwdat)[nrow(bwdat)], " \n")
     cat("trading_end: ", trading_end_time, "\n")
+    
     # the end of each bw time
     idx_time <<- c(idx_time, rownames(bwdat)[nrow(bwdat)])
-    
+	cat("checkpoint: 1\n");
     # update raw data for sw
     #chopChunk <- update_sw(chopChunk, bwdat, bwnum)
     update_sw(bwdat, bwnum)
-
+	cat("checkpoint: 2\n");
     # now build each basic win tick count stats: use apply func
     logret <- diff(log(bwdat))
-
+	cat("checkpoint: 3\n");
     #ret_rowsum <- apply(logret, 1, sum) # by row
     #ret_colsum <- apply(logret, 2, sum) # by col
     # sum of ret_rowsum should be equal to ret_colsum
-
+	cat("checkpoint: 2\n");
     # score of each basic win    
     bw_score <- apply(logret, 2, tick_counter) # 2: by column vector
     bw_score_sum <- sum(bw_score[-which(names(bw_score)==sector)])
-
+	cat("checkpoint: 4\n");
     # add to global var list
     bw_score_list <<- c(bw_score_list, bw_score_sum) # global var
     index_px_vec <- as.numeric(bwdat[,which(names(bw_score)==sector)])
     index_px_list <<- c(index_px_list, index_px_vec[length(index_px_vec)])
-    
+	cat("checkpoint: 5\n");
     index_bwret <- log(index_px_vec[nrow(bwdat)]/index_px_vec[1])
     index_bwret_list <<- c(index_bwret_list, index_bwret)
-    
+	cat("checkpoint: 6\n");
     # now process sliding window stats
     if ( bwnum >= sw/bw) {
       # lazy way: should do a 1-step update
@@ -270,16 +272,17 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
     cat(" time begin: ", rownames(bwdat)[1], "\n")
     cat(" time   end: ", rownames(bwdat)[nrow(bwdat)], " \n")
     cat("trading_end: ", trading_end_time, "\n")
+	
     # the end of each bw time
     idx_time <<- c(idx_time, rownames(bwdat)[nrow(bwdat)])
-    
+	cat("checkpoint: 1\n");
     # update raw data for sw
     #chopChunk <- update_sw(chopChunk, bwdat, bwnum)
     update_sw(bwdat, bwnum)
-
+	cat("checkpoint: 2\n");
     # now build each basic win tick count stats: use apply func
     logret <- diff(log(bwdat))
-
+	cat("checkpoint: 3\n");
     #ret_rowsum <- apply(logret, 1, sum) # by row
     #ret_colsum <- apply(logret, 2, sum) # by col
     # sum of ret_rowsum should be equal to ret_colsum
@@ -287,15 +290,15 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
     # score of each basic win    
     bw_score <- apply(logret, 2, tick_counter) # 2: by column vector
     bw_score_sum <- sum(bw_score[-which(names(bw_score)==sector)])
-
+	cat("checkpoint: 4\n");
     # add to global var list
     bw_score_list <<- c(bw_score_list, bw_score_sum) # global var
     index_px_vec <- as.numeric(bwdat[,which(names(bw_score)==sector)])
     index_px_list <<- c(index_px_list, index_px_vec[length(index_px_vec)])
-    
+	cat("checkpoint: 5\n");
     index_bwret <- log(index_px_vec[nrow(bwdat)]/index_px_vec[1])
     index_bwret_list <<- c(index_bwret_list, index_bwret)
-    
+	cat("checkpoint: 6\n");
     # now process sliding window stats
     if ( bwnum >= sw/bw) {
       # lazy way: should do a 1-step update

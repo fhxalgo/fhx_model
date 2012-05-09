@@ -174,10 +174,10 @@ gen_eod_order <- function() {
   #gen_plot()
 
   order_list <- do.call(rbind, entry_order_list)
-  write.csv(order_list,paste("/export/data/",date_str,"/",sector,"_orderlist_",date_str,",csv",sep=""))
+  write.csv(order_list,paste("/export/data/",date_str,"/",sector,"_orderlist_",date_str,".csv",sep=""))
 
   pnl <- do.call(rbind, pnl_list)
-  write.csv(order_list,paste("/export/data/",date_str,"/",sector,"_pnl_",date_str,",csv",sep=""))
+  write.csv(pnl,paste("/export/data/",date_str,"/",sector,"_pnl_",date_str,".csv",sep=""))
   cat("pnl: ", sum(pnl))
   print(pnl)
   

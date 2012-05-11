@@ -7,12 +7,12 @@ rm(list=ls(all=TRUE))
 source("C:/Projects/workspace/fhx_model/tickcount_func.r")
 
 sector <- "DIA"
-qdate_str <- "2012.05.08"
+qdate_str <- "2012.05.10"
 date_str <- gsub("\\.", "", qdate_str, ignore.case=T, fixed=F)
 #date_str <- "20120507"
 
 trade_period <- paste(date_str, " 09:30:00", "::", date_str, " 16:00:00", sep="")
-trading_end_time <- paste(date_str, " 16:00:59", sep="")
+trading_end_time <- paste(date_str, " 15:45:59", sep="")
 #z_tick <- strptime("20/2/06 11:16:16.683", "%d/%m/%y %H:%M:%OS")
 z_end <- z_tick <- strptime(trading_end_time, "%Y%m%d %H:%M:%S")
 
@@ -23,6 +23,7 @@ entry_order_list <- list()
 
 position_list <- list() # holding corrent open position
 pnl_list <- list() # holding all pnl
+pnl <- 0           # global pnl update 
     
 # test
 sym_list <- c("DIA", #"AA",
@@ -68,7 +69,8 @@ sw <- 120
 chopChunk <- list()  # raw data in a sw
 swStats <- list()    # stats in a sw
 signalList <- list() # bullish/bearish signals 
-posList <- list()
+order_list <- list() # holds order report at EOD
+posList <- list()    # hold all posList at EOD 
 
 tick_stats <- data.frame(nrow=0, ncol=n_stream)
 ts_idx <- 1
@@ -93,15 +95,8 @@ for (i in 1:m) {
     bwdat <- X[x_start:x_end, ]
     
     # call this from Java 
-    z_tick <- strptime(rownames(bwdat)[nrow(bwdat)], "%Y-%m-%d %H:%M:%OS")    
-    if (z_tick < z_end) {
-      process_bw_data_backtest(bwdat, bwnum)
-    }
-    else if ( !is.null(position_list) && length(position_list) > 0 ) {
-      # close all position
-        gen_eod_order()
-    }
-        
+    process_bw_data_backtest(bwdat, bwnum)
+
 }
 
 # call this from Java after EOD

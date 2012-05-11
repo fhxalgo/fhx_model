@@ -173,20 +173,18 @@ gen_eod_order <- function() {
 
   #gen_plot()
 
-  order_list <- do.call(rbind, entry_order_list)
+  order_list <<- do.call(rbind, entry_order_list)
   write.csv(order_list,paste("/export/data/",date_str,"/",sector,"_orderlist_",date_str,".csv",sep=""))
 
-  pnl <- do.call(rbind, pnl_list)
+  pnl <<- do.call(rbind, pnl_list)
   write.csv(pnl,paste("/export/data/",date_str,"/",sector,"_pnl_",date_str,".csv",sep=""))
-  cat("pnl: ", sum(pnl))
+  cat("today_pnl: ", sum(pnl))
   print(pnl)
   
 }
 
 process_bw_data <- function(bwdat, bwnum) {
-    cat("\n++++++BEGIN BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++\n")
-	bwnum <<- bwnum
-	
+
 	# write out basic window data as reference
 	write.csv(bwdat,paste("/export/data/",date_str,"/",sector,"_ticks_bw_",bwnum,".csv",sep=""))
 	
@@ -195,81 +193,25 @@ process_bw_data <- function(bwdat, bwnum) {
 	rownames(bwdat) <- row_idx
 	#remove the first 2 cols, rownum and timstamp
 	bwdat <- bwdat[,c(-1,-2)]
-	bwdat <- as.matrix(bwdat)
-	
-    # get new basic window data for all stream
-    #bwdat <- tickstream[readpointer:(bwnum*bw*n_stream), ]
-    # use time as index: start at 09:30, offset 120 seconds.
+	bwdat <- as.matrix(bwdat) # this is required for diff(log(bwdat))
 
-    cat("processing bwnum: ",bwnum, " \n")
-    cat(" time begin: ", rownames(bwdat)[1], "\n")
-    cat(" time   end: ", rownames(bwdat)[nrow(bwdat)], " \n")
-    cat("trading_end: ", trading_end_time, "\n")
-    
-    # the end of each bw time
-    idx_time <<- c(idx_time, rownames(bwdat)[nrow(bwdat)])
-	cat("checkpoint: 1\n");
-    # update raw data for sw
-    #chopChunk <- update_sw(chopChunk, bwdat, bwnum)
-    update_sw(bwdat, bwnum)
-	cat("checkpoint: 2\n");
-    # now build each basic win tick count stats: use apply func
-    logret <- diff(log(bwdat))
-	cat("checkpoint: 3\n");
-    #ret_rowsum <- apply(logret, 1, sum) # by row
-    #ret_colsum <- apply(logret, 2, sum) # by col
-    # sum of ret_rowsum should be equal to ret_colsum
-	cat("checkpoint: 2\n");
-    # score of each basic win    
-    bw_score <- apply(logret, 2, tick_counter) # 2: by column vector
-    bw_score_sum <- sum(bw_score[-which(names(bw_score)==sector)])
-	cat("checkpoint: 4\n");
-    # add to global var list
-    bw_score_list <<- c(bw_score_list, bw_score_sum) # global var
-    index_px_vec <- as.numeric(bwdat[,which(names(bw_score)==sector)])
-    index_px_list <<- c(index_px_list, index_px_vec[length(index_px_vec)])
-	cat("checkpoint: 5\n");
-    index_bwret <- log(index_px_vec[nrow(bwdat)]/index_px_vec[1])
-    index_bwret_list <<- c(index_bwret_list, index_bwret)
-	cat("checkpoint: 6\n");
-    # now process sliding window stats
-    if ( bwnum >= sw/bw) {
-      # lazy way: should do a 1-step update
-      sw_score_list <<- ma(bw_score_list)
-      
-      # compute sw index return, assume index 1 is the ETF sector
-      sid <- which(names(bw_score)==sector)
-      index_swpx <- chopChunk[[sid]]
-      index_swret <- log(index_swpx[length(index_swpx)]/index_swpx[1])
-      index_swret_list <<- c(index_swret_list, index_swret)
-
-      # 1. signal 
-      gen_signal_list()
-        
-      # 2. order 
-      if ( length(position_list) == 0 ) {
-          gen_entry_order()
-      }
-      
-      if ( length(position_list) > 0 ) {
-          gen_exit_order()
-      }
-       
-      # 3. position 
-
-    }
-
-    cat("\n++++++END BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++++\n")
+  # calling model, share with backtest 
+  process_bw_data_backtest(bwdat, bwnum)
+  
 }
 
 process_bw_data_backtest <- function(bwdat, bwnum) {
-    cat("\n++++++BEGIN BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++\n")
+  cat("\n++++++BEGIN BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++\n")
+  
+  bwnum <<- bwnum
+  # latest tick time
+  z_tick <<- strptime(rownames(bwdat)[nrow(bwdat)], "%Y-%m-%d %H:%M:%OS")    
 
-    cat("processing bwnum: ",bwnum, " \n")
-    cat(" time begin: ", rownames(bwdat)[1], "\n")
-    cat(" time   end: ", rownames(bwdat)[nrow(bwdat)], " \n")
-    cat("trading_end: ", trading_end_time, "\n")
-	
+  cat("processing bwnum: ",bwnum, " \n")
+  cat(" time begin: ", rownames(bwdat)[1], "\n")
+  cat(" time   end: ", rownames(bwdat)[nrow(bwdat)], " \n")
+  cat("trading_end: ", trading_end_time, "\n")
+  
     # the end of each bw time
     idx_time <<- c(idx_time, rownames(bwdat)[nrow(bwdat)])
 	cat("checkpoint: 1\n");
@@ -283,7 +225,7 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
     #ret_rowsum <- apply(logret, 1, sum) # by row
     #ret_colsum <- apply(logret, 2, sum) # by col
     # sum of ret_rowsum should be equal to ret_colsum
-
+	cat("checkpoint: 2\n");
     # score of each basic win    
     bw_score <- apply(logret, 2, tick_counter) # 2: by column vector
     bw_score_sum <- sum(bw_score[-which(names(bw_score)==sector)])
@@ -296,6 +238,7 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
     index_bwret <- log(index_px_vec[nrow(bwdat)]/index_px_vec[1])
     index_bwret_list <<- c(index_bwret_list, index_bwret)
 	cat("checkpoint: 6\n");
+	
     # now process sliding window stats
     if ( bwnum >= sw/bw) {
       # lazy way: should do a 1-step update
@@ -307,22 +250,33 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
       index_swret <- log(index_swpx[length(index_swpx)]/index_swpx[1])
       index_swret_list <<- c(index_swret_list, index_swret)
 
-      # 1. signal 
-      gen_signal_list()
+      # only gen_signals 
+      if (z_tick < z_end) {  
+        # 1. signal 
+        gen_signal_list()
+          
+        # 2. order 
+        if ( length(position_list) == 0 ) {
+            gen_entry_order()
+        }
+        else if ( length(position_list) > 0 ) {
+            gen_exit_order()
+        }
+         
+        # 3. position
         
-      # 2. order 
-      if ( length(position_list) == 0 ) {
-          gen_entry_order()
+      }      
+      else if ( !is.null(position_list) && length(position_list) > 0 ) {
+        # 4. EOD: close all positions if any
+        gen_eod_order()
       }
-      
-      if ( length(position_list) > 0 ) {
-          gen_exit_order()
-      }
-              
-      # 3. position 
+      else {
+        # do nothing
+        cat("Trading ended, all position cleared. pnl=", sum(do.call(rbind, pnl_list)), " USD\n")
+      } 
 
     }
-
+    
     cat("\n++++++END BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++++\n")
 }
 

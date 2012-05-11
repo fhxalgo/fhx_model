@@ -19,7 +19,7 @@ entry_order_list <- list()
 
 position_list <- list() # holding corrent open position
 pnl_list <- list() # holding all pnl
-
+pnl <- 0           # global pnl update 
 
 SYMBOLFILE <- paste("/export/FHX/fhx_java/conf/", tolower(sector), ".us.csv", sep="")
 sym_list <- c(sector, as.character(read.csv(SYMBOLFILE)$Symbol))
@@ -41,7 +41,8 @@ bwnum <- 0
 chopChunk <- list()  # raw data in a sw
 swStats <- list()    # stats in a sw
 signalList <- list() # bullish/bearish signals 
-posList <- list()
+order_list <- list() # holds order report at EOD
+posList <- list()    # hold all posList at EOD 
 
 tick_stats <- data.frame(nrow=0, ncol=n_stream)
 ts_idx <- 1

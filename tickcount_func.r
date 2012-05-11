@@ -198,6 +198,7 @@ process_bw_data <- function(bwdat, bwnum) {
   # calling model, share with backtest 
   process_bw_data_backtest(bwdat, bwnum)
   
+  ret_order <- entry_order_list[[bwnum]] # could be null
 }
 
 process_bw_data_backtest <- function(bwdat, bwnum) {

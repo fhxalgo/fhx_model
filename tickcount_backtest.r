@@ -95,7 +95,7 @@ for (i in 1:m) {
     bwdat <- X[x_start:x_end, ]
     
     # call this from Java 
-    process_bw_data_backtest(bwdat, bwnum)
+    me <- process_bw_data_backtest(bwdat, bwnum)
 
 }
 

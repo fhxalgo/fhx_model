@@ -196,9 +196,7 @@ process_bw_data <- function(bwdat, bwnum) {
 	bwdat <- as.matrix(bwdat) # this is required for diff(log(bwdat))
 
   # calling model, share with backtest 
-  process_bw_data_backtest(bwdat, bwnum)
-  
-  ret_order <- entry_order_list[[bwnum]] # could be null
+  ret_order <- process_bw_data_backtest(bwdat, bwnum)  
 }
 
 process_bw_data_backtest <- function(bwdat, bwnum) {
@@ -212,6 +210,9 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
   cat(" time begin: ", rownames(bwdat)[1], "\n")
   cat(" time   end: ", rownames(bwdat)[nrow(bwdat)], " \n")
   cat("trading_end: ", trading_end_time, "\n")
+  
+  # init it 
+  entry_order_list[[bwnum]] <- list()
   
     # the end of each bw time
     idx_time <<- c(idx_time, rownames(bwdat)[nrow(bwdat)])
@@ -277,8 +278,20 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
       } 
 
     }
-    
+
     cat("\n++++++END BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++++\n")
+        
+    # return new order 
+    ret_order <- list()  
+    if (length(entry_order_list) > 0) {
+      ret_order <- entry_order_list[[bwnum]] # could be null
+    } 
+    
+    cat("bwnum ",bwnum," order: \n")
+    print(ret_order) 
+    
+    ret_order
+    
 }
 
 # xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx

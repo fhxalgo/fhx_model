@@ -212,7 +212,7 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
   cat("trading_end: ", trading_end_time, "\n")
   
   # init it 
-  entry_order_list[[bwnum]] <- list()
+  entry_order_list[[bwnum]] <<- list()
   
     # the end of each bw time
     idx_time <<- c(idx_time, rownames(bwdat)[nrow(bwdat)])
@@ -282,9 +282,9 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
     cat("\n++++++END BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++++\n")
         
     # return new order 
-    ret_order <- list()  
+    ret_order <- data.frame()  
     if (length(entry_order_list) > 0) {
-      ret_order <- entry_order_list[[bwnum]] # could be null
+      ret_order <- as.data.frame(entry_order_list[[bwnum]]) # could be null
     } 
     
     cat("bwnum ",bwnum," order: \n")

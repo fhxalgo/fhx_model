@@ -196,7 +196,8 @@ process_bw_data <- function(bwdat, bwnum) {
 	bwdat <- as.matrix(bwdat) # this is required for diff(log(bwdat))
 
   # calling model, share with backtest 
-  ret_order <- process_bw_data_backtest(bwdat, bwnum)  
+  ret_order <- process_bw_data_backtest(bwdat, bwnum)
+  ret_order  
 }
 
 process_bw_data_backtest <- function(bwdat, bwnum) {
@@ -270,11 +271,12 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
       }      
       else if ( !is.null(position_list) && length(position_list) > 0 ) {
         # 4. EOD: close all positions if any
+        cat("calling gen_eod_order(), all position are to be cleared...\n")
         gen_eod_order()
       }
       else {
         # do nothing
-        cat("Trading ended, all position cleared. pnl=", sum(do.call(rbind, pnl_list)), " USD\n")
+        cat("Trading EOD ended, all position cleared. pnl=", sum(do.call(rbind, pnl_list)), " USD\n")
       } 
 
     }

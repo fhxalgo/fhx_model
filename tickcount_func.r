@@ -200,6 +200,20 @@ process_bw_data <- function(bwdat, bwnum) {
   ret_order  
 }
 
+test_order_func <- function(bwdat, bwnum) {
+	new_order <- list()
+	idx_time <<- c(idx_time, rownames(bwdat)[nrow(bwdat)])
+	new_order <- add_new_order("DIA","buy",100,99,bwnum,idx_time[length(idx_time)],"EntryLong")       
+	
+	ret_order <- data.frame()  
+	ret_order <- as.data.frame(new_order)
+	
+	cat("bwnum ",bwnum," order: \n")
+	print(ret_order) 
+	
+	ret_order
+}
+
 process_bw_data_backtest <- function(bwdat, bwnum) {
   cat("\n++++++BEGIN BASIC WINDOW [",bwnum,"] ++++++++++++++++++++++\n")
   

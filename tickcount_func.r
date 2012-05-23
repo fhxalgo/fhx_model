@@ -55,7 +55,7 @@ update_sw <- function(newbw, bwnum)
 }
 
 gen_signal_list <- function() {
-  # return just a signal, may or may not be traded
+  cat("\ngenerating signal list...\n")
   
   # compute swStats: bw stats, current sw
   bw_score_sd <- sd(bw_score_list)
@@ -97,6 +97,7 @@ add_new_order <- function(sym, side, qty, px, bwnum, ord_time, ord_type)
 }
 
 gen_entry_order <- function() {
+  cat("\ngenerating entry order...\n")
   # open a long/short position 
   # long: sw_score is > 2*sd(bw_score_list)
   #       && index bw_ret > 0 && sw_ret > 0
@@ -104,27 +105,28 @@ gen_entry_order <- function() {
   #       && index bw_ret < 0 && sw_ret < 0  
   new_order <- list()
   
-  if (signalList[[bwnum]]$t=="buy" 
-      && index_bwret_list[length(index_bwret_list)] > 0) {
+  if (signalList[[bwnum]]$t=="buy" && index_bwret_list[length(index_bwret_list)] > 0) {
       
       limit_px <- index_px_list[length(index_px_list)]
-      new_order <- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"EntryLong")  
+	  num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
+      new_order <- add_new_order(sector,"buy",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"EntryLong")  
       
-      position_list <<- list(index=sector, side="long", qty=default_qty, px=limit_px)
+      position_list <<- list(index=sector, side="long", qty=num_shrs, px=limit_px)
   }
-  else if (signalList[[bwnum]]$t=="sell" 
-      && index_bwret_list[length(index_bwret_list)] < 0) {
+  else if (signalList[[bwnum]]$t=="sell" && index_bwret_list[length(index_bwret_list)] < 0) {
 
       limit_px <- index_px_list[length(index_px_list)]
-      new_order <- add_new_order(sector,"shortsell",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"EntryShort")       
+	  num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
+      new_order <- add_new_order(sector,"shortsell",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"EntryShort")       
       
-      position_list <<- list(index=sector, side="short", qty=default_qty, px=limit_px)
+      position_list <<- list(index=sector, side="short", qty=num_shrs, px=limit_px)
   }    
   
   entry_order_list[[bwnum]] <<- new_order
 }
 
 gen_exit_order <- function() {
+  cat("\ngenerating exit order...\n")
   # if holding a long position,  close when sw_score < 0
   # if holing a short position, close when sw_score > 0
   
@@ -132,7 +134,8 @@ gen_exit_order <- function() {
     && (sw_score_list[length(sw_score_list)] < 0) ) {
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
+	  num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
       
       pnl_list[[bwnum]] <<- position_list$qty * ( limit_px - position_list$px )
       position_list <<- NULL
@@ -141,12 +144,29 @@ gen_exit_order <- function() {
     && (sw_score_list[length(sw_score_list)] > 0) ) {
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
+	  num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
       
       pnl_list[[bwnum]] <<- position_list$qty * ( position_list$px - limit_px )
       position_list <<- NULL
   }
    
+  	#Generate Kelly's allocation factor using pnl_list information
+	# Trade Size = Winng % of total trade - (1-Winng % of total trade)/(total profit/total loss)
+	if(length(pnl_list) > 0) {
+		profit_list <- pnl_list[sapply(pnl_list, function(x) !is.na(x) && x > 0 )]
+		loss_list <- pnl_list[sapply(pnl_list, function(x) !is.na(x) && x < 0 )]
+		# use half kelly here to be conservative
+		winning_percent <- length(profit_list)/length(pnl_list) 
+		kelly <<- winning_percent - (1-winning_percent)/(sum(unlist(profit_list))/sum(unlist(loss_list)))
+		kelly <<- kelly/2
+		
+		cat("operating on new Kelly of ", kelly, "\n")
+	}
+	
+	# sanity check 
+	if(kelly <=0 || kelly > 1)
+		kelly <<- initial_allocation
 }
 
 gen_eod_order <- function() {
@@ -231,30 +251,22 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
   
     # the end of each bw time
     idx_time <<- c(idx_time, rownames(bwdat)[nrow(bwdat)])
-	cat("checkpoint: 1\n");
     # update raw data for sw
     #chopChunk <- update_sw(chopChunk, bwdat, bwnum)
     update_sw(bwdat, bwnum)
-	cat("checkpoint: 2\n");
     # now build each basic win tick count stats: use apply func
     logret <- diff(log(bwdat))
-	cat("checkpoint: 3\n");
-    #ret_rowsum <- apply(logret, 1, sum) # by row
-    #ret_colsum <- apply(logret, 2, sum) # by col
-    # sum of ret_rowsum should be equal to ret_colsum
-	cat("checkpoint: 2\n");
     # score of each basic win    
     bw_score <- apply(logret, 2, tick_counter) # 2: by column vector
     bw_score_sum <- sum(bw_score[-which(names(bw_score)==sector)])
-	cat("checkpoint: 4\n");
     # add to global var list
     bw_score_list <<- c(bw_score_list, bw_score_sum) # global var
     index_px_vec <- as.numeric(bwdat[,which(names(bw_score)==sector)])
     index_px_list <<- c(index_px_list, index_px_vec[length(index_px_vec)])
-	cat("checkpoint: 5\n");
     index_bwret <- log(index_px_vec[nrow(bwdat)]/index_px_vec[1])
     index_bwret_list <<- c(index_bwret_list, index_bwret)
-	cat("checkpoint: 6\n");
+	
+	cat("done setting up...\n")
 	
     # now process sliding window stats
     if ( bwnum >= sw/bw) {
@@ -267,6 +279,8 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
       index_swret <- log(index_swpx[length(index_swpx)]/index_swpx[1])
       index_swret_list <<- c(index_swret_list, index_swret)
 
+	  cat("done computing index returns...\n")
+	  
       # only gen_signals 
       if (z_tick < z_end) {  
         # 1. signal 

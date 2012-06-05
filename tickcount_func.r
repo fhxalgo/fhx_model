@@ -223,7 +223,7 @@ process_bw_data <- function(bwdat, bwnum) {
 test_order_func <- function(bwdat, bwnum) {
 	new_order <- list()
 	idx_time <<- c(idx_time, rownames(bwdat)[nrow(bwdat)])
-	new_order <- add_new_order("DIA","buy",100,99,bwnum,idx_time[length(idx_time)],"EntryLong")       
+	new_order <- add_new_order("NDX","buy",100,99,bwnum,idx_time[length(idx_time)],"EntryLong")       
 	
 	ret_order <- data.frame()  
 	ret_order <- as.data.frame(new_order)

@@ -5,7 +5,7 @@ rm(list=ls(all=TRUE))
 
 #source("/export/FHX/fhx_model/tickcount_func.r")
 
-sector <- "DIA"
+sector <- "NDX"
 date_str <- format(Sys.time(),format="%Y%m%d")
 
 trade_period <- paste(date_str, " 09:30:00", "::", date_str, " 16:00:00", sep="")

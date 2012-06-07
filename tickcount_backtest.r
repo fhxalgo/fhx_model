@@ -7,9 +7,14 @@ rm(list=ls(all=TRUE))
 source("C:/Projects/workspace/fhx_model/tickcount_func.r")
 
 sector <- "DIA"
-qdate_str <- "2012.05.14"
+qdate_str <- "2012.05.30"
 date_str <- gsub("\\.", "", qdate_str, ignore.case=T, fixed=F)
 #date_str <- "20120507"
+
+# kelly formula
+total_capital <- 10000 	
+initial_allocation <- 0.2
+kelly <- initial_allocation
 
 trade_period <- paste(date_str, " 09:30:00", "::", date_str, " 16:00:00", sep="")
 trading_end_time <- paste(date_str, " 15:45:59", sep="")

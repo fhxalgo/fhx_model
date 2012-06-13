@@ -165,7 +165,7 @@ gen_exit_order <- function() {
 	}
 	
 	# sanity check 
-	if(kelly <=0 || kelly > 1)
+	if(is.na(kelly) || kelly <=0 || kelly > 1)
 		kelly <<- initial_allocation
 }
 

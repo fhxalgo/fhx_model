@@ -6,8 +6,8 @@ rm(list=ls(all=TRUE))
 
 source("C:/Projects/workspace/fhx_model/tickcount_func.r")
 
-sector <- "DIA"
-qdate_str <- "2012.05.30"
+sector <- "QQQ"
+qdate_str <- "2012.06.08"
 date_str <- gsub("\\.", "", qdate_str, ignore.case=T, fixed=F)
 #date_str <- "20120507"
 

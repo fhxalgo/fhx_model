@@ -9,7 +9,7 @@ sector <- "QQQ"
 date_str <- format(Sys.time(),format="%Y%m%d")
 
 trade_period <- paste(date_str, " 09:30:00", "::", date_str, " 16:00:00", sep="")
-trading_end_time <- paste(date_str, " 16:00:59", sep="")
+trading_end_time <- paste(date_str, " 15:45:59", sep="")
 z_end <- z_tick <- strptime(trading_end_time, "%Y%m%d %H:%M:%S")
 
 total_capital <- 10000 	

@@ -174,22 +174,7 @@ gen_eod_order <- function() {
   # if holing a short position, close when sw_score > 0
   cat("EOD reached, gen_eod_order. \n")
 
-    if (position_list$side == "long") {
-      # close long position 
-        limit_px <- index_px_list[length(index_px_list)]
-        entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
-        
-        pnl_list[[bwnum]] <<- position_list$qty * ( limit_px - position_list$px )
-        position_list <<- NULL
-    }
-    else if (position_list$side == "short") {
-      # close long position 
-        limit_px <- index_px_list[length(index_px_list)]
-        entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",default_qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
-        
-        pnl_list[[bwnum]] <<- position_list$qty * ( position_list$px - limit_px )      
-        position_list <<- NULL
-    } 
+  gen_exit_order()
 
   #gen_plot()
 

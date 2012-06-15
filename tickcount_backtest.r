@@ -7,9 +7,9 @@ rm(list=ls(all=TRUE))
 source("C:/Projects/workspace/fhx_model/tickcount_func.r")
 
 sector <- "QQQ"
-qdate_str <- "2012.06.08"
+#qdate_str <- "2012.06.14"
+qdate_str <- format(Sys.time(),format="%Y%m%d")
 date_str <- gsub("\\.", "", qdate_str, ignore.case=T, fixed=F)
-#date_str <- "20120507"
 
 # kelly formula
 total_capital <- 10000 	

@@ -57,6 +57,6 @@ sw_score_list <- c(rep(NA,sw/bw-1))
 index_bwret_list <- c()
 index_swret_list <- c(rep(NA,sw/bw-1))
 
-
+report_flag <- FALSE
 #cat(format(Sys.time(),format="%Y-%m-%d %H:%M:%S"), "\n")
 

@@ -174,8 +174,13 @@ gen_eod_order <- function() {
   # if holing a short position, close when sw_score > 0
   cat("EOD reached, gen_eod_order. \n")
 
-  gen_exit_order()
+  gen_exit_order()  
+}
 
+gen_eod_report <- function() {
+  # if holding a long position,  close when sw_score < 0
+  # if holing a short position, close when sw_score > 0
+  cat("EOD reached, gen_eod_report. \n")
   #gen_plot()
 
   order_list <<- do.call(rbind, entry_order_list)
@@ -185,7 +190,8 @@ gen_eod_order <- function() {
   write.csv(pnl,paste("/export/data/",date_str,"/",sector,"_pnl_",date_str,".csv",sep=""))
   cat("today_pnl: ", sum(pnl))
   print(pnl)
-  
+
+  report_flag <- TRUE  
 }
 
 process_bw_data <- function(bwdat, bwnum) {
@@ -290,6 +296,10 @@ process_bw_data_backtest <- function(bwdat, bwnum) {
       else {
         # do nothing
         cat("Trading EOD ended, all position cleared. pnl=", sum(do.call(rbind, pnl_list)), " USD\n")
+        
+        if (!report_flag) {
+          gen_eod_report()
+        }
       } 
 
     }

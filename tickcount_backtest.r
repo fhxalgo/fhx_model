@@ -29,6 +29,7 @@ entry_order_list <- list()
 position_list <- list() # holding corrent open position
 pnl_list <- list() # holding all pnl
 pnl <- 0           # global pnl update 
+report_flag <- FALSE
     
 # test
 sym_list <- c("DIA", #"AA",

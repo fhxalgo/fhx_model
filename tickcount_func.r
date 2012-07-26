@@ -108,7 +108,7 @@ gen_entry_order <- function() {
   if (signalList[[bwnum]]$t=="buy" && index_bwret_list[length(index_bwret_list)] > 0) {
       
       limit_px <- index_px_list[length(index_px_list)]
-	  num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
+	    num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
       new_order <- add_new_order(sector,"buy",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"EntryLong")  
       
       position_list <<- list(index=sector, side="long", qty=num_shrs, px=limit_px)
@@ -116,8 +116,8 @@ gen_entry_order <- function() {
   else if (signalList[[bwnum]]$t=="sell" && index_bwret_list[length(index_bwret_list)] < 0) {
 
       limit_px <- index_px_list[length(index_px_list)]
-	  num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
-      new_order <- add_new_order(sector,"shortsell",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"EntryShort")       
+	    num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
+      new_order <- add_new_order(sector,"sell",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"EntryShort")       
       
       position_list <<- list(index=sector, side="short", qty=num_shrs, px=limit_px)
   }    
@@ -131,27 +131,68 @@ gen_exit_order <- function() {
   # if holing a short position, close when sw_score > 0
   
   if ( position_list$side == "long" 
-    && (sw_score_list[length(sw_score_list)] < 0) ) {
+    && (sw_score_list[length(sw_score_list)] < summary(sw_score_list)[2]) ) {    
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
-	  num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
+	    # use the existing position size
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",position_list$qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
       
       pnl_list[[bwnum]] <<- position_list$qty * ( limit_px - position_list$px )
       position_list <<- NULL
   }
   else if (position_list$side == "short" 
-    && (sw_score_list[length(sw_score_list)] > 0) ) {
-    # close long position 
+        && (sw_score_list[length(sw_score_list)] > summary(sw_score_list)[5]) ) {    
+      # close long position 
       limit_px <- index_px_list[length(index_px_list)]
-	  num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
-      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",position_list$qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
       
       pnl_list[[bwnum]] <<- position_list$qty * ( position_list$px - limit_px )
       position_list <<- NULL
   }
    
-  	#Generate Kelly's allocation factor using pnl_list information
+ 	#Generate Kelly's allocation factor using pnl_list information
+	# Trade Size = Winng % of total trade - (1-Winng % of total trade)/(total profit/total loss)
+	if(length(pnl_list) > 0) {
+		profit_list <- pnl_list[sapply(pnl_list, function(x) !is.na(x) && x > 0 )]
+		loss_list <- pnl_list[sapply(pnl_list, function(x) !is.na(x) && x < 0 )]
+		# use half kelly here to be conservative
+		winning_percent <- length(profit_list)/length(pnl_list) 
+		kelly <<- winning_percent - (1-winning_percent)/(sum(unlist(profit_list))/sum(unlist(loss_list)))
+		kelly <<- kelly/2
+		
+		cat("operating on new Kelly of ", kelly, "\n")
+	}
+	
+	# sanity check 
+	if(is.na(kelly) || kelly <=0 || kelly > 1) {
+		kelly <<- initial_allocation
+	}
+}
+
+gen_exit_order_v1.1 <- function() {
+  cat("\ngenerating exit order...\n")
+  # close only when signal sign changes 
+    
+  if ( position_list$side == "long" 
+    && signalList[[length(signalList)]]$t=="sell" ) {   
+    # close long position 
+      limit_px <- index_px_list[length(index_px_list)]
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",position_list$qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
+      
+      pnl_list[[bwnum]] <<- position_list$qty * ( limit_px - position_list$px )
+      position_list <<- NULL
+  }
+  else if (position_list$side == "short" 
+        && signalList[[length(signalList)]]$t=="buy" ) {  
+    # close long position 
+      limit_px <- index_px_list[length(index_px_list)]
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",position_list$qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
+      
+      pnl_list[[bwnum]] <<- position_list$qty * ( position_list$px - limit_px )
+      position_list <<- NULL
+  }
+   
+ 	#Generate Kelly's allocation factor using pnl_list information
 	# Trade Size = Winng % of total trade - (1-Winng % of total trade)/(total profit/total loss)
 	if(length(pnl_list) > 0) {
 		profit_list <- pnl_list[sapply(pnl_list, function(x) !is.na(x) && x > 0 )]
@@ -169,12 +210,30 @@ gen_exit_order <- function() {
 		kelly <<- initial_allocation
 }
 
+
 gen_eod_order <- function() {
   # if holding a long position,  close when sw_score < 0
   # if holing a short position, close when sw_score > 0
   cat("EOD reached, gen_eod_order. \n")
 
-  gen_exit_order()  
+  if ( position_list$side == "long" ) {    
+    # close long position 
+      limit_px <- index_px_list[length(index_px_list)]
+	    # use the existing position size
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"sell",position_list$qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
+      
+      pnl_list[[bwnum]] <<- position_list$qty * ( limit_px - position_list$px )
+      position_list <<- NULL
+  }
+  else if (position_list$side == "short" ) {    
+      # close long position 
+      limit_px <- index_px_list[length(index_px_list)]
+      entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",position_list$qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
+      
+      pnl_list[[bwnum]] <<- position_list$qty * ( position_list$px - limit_px )
+      position_list <<- NULL
+  }
+  
 }
 
 gen_eod_report <- function() {

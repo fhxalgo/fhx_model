@@ -117,7 +117,7 @@ gen_entry_order <- function() {
 
       limit_px <- index_px_list[length(index_px_list)]
 	  num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
-      new_order <- add_new_order(sector,"sell",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"EntryShort")       
+      new_order <- add_new_order(sector,"shortsell",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"EntryShort")       
       
       position_list <<- list(index=sector, side="short", qty=num_shrs, px=limit_px)
   }    

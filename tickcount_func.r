@@ -108,7 +108,7 @@ gen_entry_order <- function() {
   if (signalList[[bwnum]]$t=="buy" && index_bwret_list[length(index_bwret_list)] > 0) {
       
       limit_px <- index_px_list[length(index_px_list)]
-	    num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
+	  num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
       new_order <- add_new_order(sector,"buy",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"EntryLong")  
       
       position_list <<- list(index=sector, side="long", qty=num_shrs, px=limit_px)
@@ -116,7 +116,7 @@ gen_entry_order <- function() {
   else if (signalList[[bwnum]]$t=="sell" && index_bwret_list[length(index_bwret_list)] < 0) {
 
       limit_px <- index_px_list[length(index_px_list)]
-	    num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
+	  num_shrs <- floor(total_capital*kelly/limit_px)  # round down to nearest integer
       new_order <- add_new_order(sector,"sell",num_shrs,limit_px,bwnum,idx_time[length(idx_time)],"EntryShort")       
       
       position_list <<- list(index=sector, side="short", qty=num_shrs, px=limit_px)
@@ -212,9 +212,7 @@ gen_exit_order_v1.1 <- function() {
 
 
 gen_eod_order <- function() {
-  # if holding a long position,  close when sw_score < 0
-  # if holing a short position, close when sw_score > 0
-  cat("EOD reached, gen_eod_order. \n")
+  cat("EOD reached, close all open positions... \n")
 
   if ( position_list$side == "long" ) {    
     # close long position 

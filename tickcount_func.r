@@ -131,7 +131,7 @@ gen_exit_order <- function() {
   # if holing a short position, close when sw_score > 0
   
   if ( position_list$side == "long" 
-    && (sw_score_list[length(sw_score_list)] < 0 ) {    
+    && (sw_score_list[length(sw_score_list)] < 0 )) {    
     # close long position 
       limit_px <- index_px_list[length(index_px_list)]
 	    # use the existing position size
@@ -141,7 +141,7 @@ gen_exit_order <- function() {
       position_list <<- NULL
   }
   else if (position_list$side == "short" 
-        && (sw_score_list[length(sw_score_list)] > 0 ) {    
+        && (sw_score_list[length(sw_score_list)] > 0 )) {    
       # close long position 
       limit_px <- index_px_list[length(index_px_list)]
       entry_order_list[[bwnum]] <<- add_new_order(sector,"buy",position_list$qty,limit_px,bwnum,idx_time[length(idx_time)],"Exit")
